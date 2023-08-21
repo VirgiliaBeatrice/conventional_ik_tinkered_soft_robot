@@ -5,18 +5,34 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:helix="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
         xmlns:local="clr-namespace:ConventionalIK"
+        xmlns:vm="clr-namespace:ConventionalIK"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-        <Grid>
-        <helix:HelixViewport3D x:Name="view1" ZoomExtentsWhenLoaded="True" RotateGesture="LeftClick">
-                <!-- Lighting -->
-                <helix:SunLight/>
-                <!-- Add spinning cube -->
-                <helix:CubeVisual3D x:Name="cube" Center="0,0,0" SideLength="1" Fill="LightBlue" />
-                <!-- Camera setup -->
-                <helix:HelixViewport3D.Camera>
-                    <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,1,0"/>
-                </helix:HelixViewport3D.Camera>
-            </helix:HelixViewport3D>
-        </Grid>
+
+    <Grid>
+        <helix:HelixViewport3D x:Name="view1" Background="Gray">
+            <!-- Lighting -->
+            <helix:SunLight/>
+
+            <!-- 3D Arc (Portion of Cylinder to Represent Arc) -->
+            <helix:TubeVisual3D Path="{Binding ArcPath}" Diameter="0.1" Fill="Blue" />
+
+            <!-- Add origin (a small sphere can represent the origin) -->
+            <helix:SphereVisual3D Center="0,0,0" Radius="0.05" Fill="White"/>
+
+            <!-- Add coordinate system arrows -->
+            <helix:ArrowVisual3D Point1="0,0,0" Point2="1,0,0" Diameter="0.03" Fill="Red"/>
+            <!-- X-axis arrow (Red) -->
+            <helix:ArrowVisual3D Point1="0,0,0" Point2="0,1,0" Diameter="0.03" Fill="Green"/>
+            <!-- Y-axis arrow (Green) -->
+            <helix:ArrowVisual3D Point1="0,0,0" Point2="0,0,1" Diameter="0.03" Fill="Blue"/>
+            <!-- Z-axis arrow (Blue) -->
+            <helix:GridLinesVisual3D Width="10" Length="10" MinorDistance="0.5" MajorDistance="1" Thickness="0.01" Fill="DimGray"/>
+
+            <!-- Camera setup -->
+            <helix:HelixViewport3D.Camera>
+                <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,1,0"/>
+            </helix:HelixViewport3D.Camera>
+        </helix:HelixViewport3D>
+    </Grid>
 </Window>

@@ -20,23 +20,25 @@ namespace ConventionalIK {
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window {
-        private readonly DispatcherTimer _timer;
+        public Point3DCollection ArcPath { get; private set; }
 
         public MainWindow() {
             InitializeComponent();
+            DataContext = this;
 
-            // Set up the rotation timer
-            _timer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher) {
-                Interval = TimeSpan.FromMilliseconds(30)
-            };
-            _timer.Tick += TimerOnTick;
-            _timer.Start();
+            // Create a 3D arc path
+            ArcPath = new Point3DCollection(Create3DArcPath(new Point3D(0, 0, 0), 2, 45, 135, 0.1));
         }
 
-        private void TimerOnTick(object sender, EventArgs eventArgs) {
-            var rotation = new AxisAngleRotation3D(new Vector3D(0, 1, 0), 1);
-            var transform = new RotateTransform3D(rotation, new Point3D(0, 0, 0));
-            cube.Transform = transform;
+        private List<Point3D> Create3DArcPath(Point3D center, double radius, double startAngle, double endAngle, double step) {
+            List<Point3D> path = new List<Point3D>();
+            for (double angle = startAngle; angle <= endAngle; angle += step) {
+                double radian = angle * (Math.PI / 180);
+                double x = center.X + radius * Math.Cos(radian);
+                double y = center.Y + radius * Math.Sin(radian);
+                path.Add(new Point3D(x, y, center.Z));
+            }
+            return path;
         }
     }
 }
