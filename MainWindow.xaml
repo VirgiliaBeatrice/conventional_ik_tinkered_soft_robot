@@ -1,0 +1,22 @@
+﻿<Window x:Class="ConventionalIK.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:helix="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+        xmlns:local="clr-namespace:ConventionalIK"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+        <Grid>
+        <helix:HelixViewport3D x:Name="view1" ZoomExtentsWhenLoaded="True" RotateGesture="LeftClick">
+                <!-- Lighting -->
+                <helix:SunLight/>
+                <!-- Add spinning cube -->
+                <helix:CubeVisual3D x:Name="cube" Center="0,0,0" SideLength="1" Fill="LightBlue" />
+                <!-- Camera setup -->
+                <helix:HelixViewport3D.Camera>
+                    <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,1,0"/>
+                </helix:HelixViewport3D.Camera>
+            </helix:HelixViewport3D>
+        </Grid>
+</Window>
