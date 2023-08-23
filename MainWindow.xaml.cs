@@ -32,16 +32,19 @@ namespace ConventionalIK {
             InitializeComponent();
             DataContext = this;
 
-            var l = Vector<double>.Build.DenseOfArray(new double[] { 5, 10, 10 });
+            var l = Vector<double>.Build.DenseOfArray(new double[] { 4, 2, 4 });
 
-            var arc = Kinematics.GetSingleSectionArcParameters(l, 1, 5);
+            var arc = Kinematics.GetSingleSectionArcParameters(l, 1, 4);
             var s = arc[0];
             var kappa = arc[1];
             var phi = arc[2];
             var radius = 1 / kappa;
 
             // Create a 3D arc path
-            ArcPath = new Point3DCollection(ComputeArcPoints(new Vector3d(radius, 0, 0), kappa, new Vector3d(0,0,0), s).Select(e => new Point3D(e.X, e.Y, e.Z)));
+            if (kappa == 0)
+                ArcPath = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, 4) });
+            else
+                ArcPath = new Point3DCollection(ComputeArcPoints(new Vector3d(radius, 0, 0), kappa, new Vector3d(0,0,0), s,phi).Select(e => new Point3D(e.X, e.Y, e.Z)));
 
             var visual = new MeshGeometryVisual3D() {
                 MeshGeometry = CreatePlaneWithNormal(phi*180/Math.PI),
@@ -49,6 +52,16 @@ namespace ConventionalIK {
             };
 
             view1.Children.Add(visual);
+
+            //var plane = new Plane3D(new Point3D(0.5, 0.5, 0), new Vector3D(0, 0, 1));
+            //var planeVisual = new ModelVisual3D();
+            //var group = new Model3DGroup();
+
+            //group.Children.Add()
+
+            //view1.Children.Add(planeVisual);
+
+            //planeVisual.Content = 
         }
 
         private List<Point3D> Create3DArcPath(Point3D center, double radius, double startAngle, double endAngle, double step) {
@@ -79,7 +92,7 @@ namespace ConventionalIK {
         //    var arcPath = Create3DArcPath(origin, radius, phi * (180 / Math.PI), 180, 0.1);
         //}
 
-        public List<Vector3d> ComputeArcPoints(Vector3d center, double kappa, Vector3d startPoint, double arcLength) {
+        public List<Vector3d> ComputeArcPoints(Vector3d center, double kappa, Vector3d startPoint, double arcLength, double phi) {
             var arcPoints = new List<Vector3d>();
             var radius = 1 / kappa;
             var startVector = startPoint - center;
@@ -87,19 +100,13 @@ namespace ConventionalIK {
             // Ensure startVector is normalized
             startVector.Normalize();
 
-            var theta = 30;
-            // Compute the normal to the arc's plane according to an angle theta in x-y plane
-            //Vector3d normal = new Vector3d(Math.Cos(180 / Math.PI * theta), Math.Sin(180 / Math.PI * theta), 0);
-
             // Compute the normal to the arc's plane
-            Vector3d normal;
+            var normal = new Vector3d(0, 1, 0);
+            var zAxis = new Vector3d(0, 0, 1);
 
-            if (startVector != Vector3d.Cross(startVector, new Vector3d(0, 0, 1)))
-                normal = Vector3d.Cross(startVector, new Vector3d(0, 0, 1));
-            else
-                normal = Vector3d.Cross(startVector, new Vector3d(0, 1, 0));
-
-            normal.Normalize();
+            // Rotate the normal by phi around the z-axis
+            phi = 0;
+            normal = Quaterniond.FromAxisAngle(zAxis, phi) * normal;
 
             int numSegments = 100;  // The number of segments to use to draw the arc. Adjust as needed.
             double angleIncrement = arcLength / radius / numSegments;
@@ -111,20 +118,20 @@ namespace ConventionalIK {
             }
 
             return arcPoints;
+            //return arcPoints.Select(e => rotation * e).ToList();
         }
 
         public MeshGeometry3D CreatePlaneWithNormal(double angle) {
-            // A unit square in the XY-plane
-            Point3D p1 = new Point3D(0, 0, 0);
-            Point3D p2 = new Point3D(0, 0, 1);
-            Point3D p3 = new Point3D(1, 0, 1);
-            Point3D p4 = new Point3D(1, 0, 0);
+            // A unit square in the XZ-plane
+
+            Point3D p1 = new Point3D(-0.5, 0, -0.5);
+            Point3D p2 = new Point3D(-0.5, 0, 0.5);
+            Point3D p3 = new Point3D(0.5, 0, 0.5);
+            Point3D p4 = new Point3D(0.5, 0, -0.5);
 
             // Find rotation that aligns Z-axis (0, 0, 1) to the given normal
-
-
-            Vector3D zAxis = new Vector3D(0, 0, 1);
-            Quaternion rotation = new Quaternion(zAxis, angle);
+            var zAxis = new Vector3D(0, 0, 1);
+            var rotation = new Quaternion(zAxis, angle);
 
             // Rotate the points
             var rotateTransform = new RotateTransform3D(new QuaternionRotation3D(rotation));

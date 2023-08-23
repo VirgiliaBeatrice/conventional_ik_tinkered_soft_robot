@@ -1,4 +1,5 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+﻿using HelixToolkit.Wpf;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,9 +31,24 @@ namespace ConventionalIK {
 
             var s = n * d * (l0 + l1 + l2) / f0 * Math.Asin(f0 / (3 * n * d));
             var kappa = 2 * f0 / (d * (l0 + l1 + l2));
-            var phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
 
-            return Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi });
+            if (kappa == 0) {
+                return Vector<double>.Build.DenseOfArray(new double[] { (l0 + l1 + l2) / 3, kappa, double.NaN });
+            } else {
+                double phi = 0;
+
+                if (Math.Sign(l2 - l1) == 1) {
+                    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
+                }
+                else if (Math.Sign(l2 - l1) == 0) {
+                    phi = Math.Sign(l1 - l0) == 1 ? 90 * Math.PI / 180 : 270 * Math.PI / 180;
+                }
+                else if (Math.Sign(l2 - l1) == -1) {
+                    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+                }
+
+                return Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi });
+            }
         }
 
         public static Vector<double> GetLengths(Vector<double> arcParameters, int numOfSegments, double diameter) {
