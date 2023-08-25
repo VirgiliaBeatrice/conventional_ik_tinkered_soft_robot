@@ -1,10 +1,7 @@
-﻿using HelixToolkit.Wpf;
-using MathNet.Numerics.LinearAlgebra;
+﻿using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Security.Permissions;
 
 namespace ConventionalIK {
     public class Kinematics {
@@ -34,7 +31,8 @@ namespace ConventionalIK {
 
             if (kappa == 0) {
                 return Vector<double>.Build.DenseOfArray(new double[] { (l0 + l1 + l2) / 3, kappa, double.NaN });
-            } else {
+            }
+            else {
                 double phi = 0;
 
                 if (Math.Sign(l2 - l1) == 1) {
@@ -72,62 +70,101 @@ namespace ConventionalIK {
             return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
         }
 
-        public static Matrix<double> MakeJacobianMatrix_F2(Vector<double> lengths, int numOfSegments, double diameter) {
+        public static Matrix<double> MakeJacobianMatrix_F2(Vector<double> lengths, double diameter, int numOfSegments) {
+            double[] CalculateS(Vector<double> lengths, double d, int n) {
+                double l0, l1, l2;
+                l0 = lengths[0];
+                l1 = lengths[1];
+                l2 = lengths[2];
+
+                var A = l0 + l1 + l2;
+                var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
+                var u = n * d * A / Math.Sqrt(B);
+                var v = Math.Asin(Math.Sqrt(B) / (3 * n * d));
+
+                var partial_a_l0 = 1;
+                var partial_a_l1 = 1;
+                var partial_a_l2 = 1;
+                var partial_b_l0 = 2 * l0 - l1 - l2;
+                var partial_b_l1 = 2 * l1 - l0 - l2;
+                var partial_b_l2 = 2 * l2 - l0 - l1;
+
+                double partial_u_l0 = (n * d * Math.Sqrt(B) * partial_a_l0 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l0) / B;
+                double partial_u_l1 = (n * d * Math.Sqrt(B) * partial_a_l1 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l1) / B;
+                double partial_u_l2 = (n * d * Math.Sqrt(B) * partial_a_l2 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l2) / B;
+
+                double partial_v_l0 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l0;
+                double partial_v_l1 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l1;
+                double partial_v_l2 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l2;
+
+                double partial_s_l0 = partial_u_l0 * v + partial_v_l0 * u;
+                double partial_s_l1 = partial_u_l1 * v + partial_v_l1 * u;
+                double partial_s_l2 = partial_u_l2 * v + partial_v_l2 * u;
+
+                return new double[] { partial_s_l0, partial_s_l1, partial_s_l2 };
+            }
+
+            double[] partial_s = CalculateS(lengths, diameter, numOfSegments);
+
+            // k
+            double[] CalculateK(Vector<double> lengths, double diameter) {
+                double l0, l1, l2;
+                l0 = lengths[0];
+                l1 = lengths[1];
+                l2 = lengths[2];
+
+                var d = diameter;
+
+                var partial_b_l0 = 2 * l0 - l1 - l2;
+                var partial_b_l1 = 2 * l1 - l0 - l2;
+                var partial_b_l2 = 2 * l2 - l0 - l1;
+
+                return new double[] {
+                    1 / (Math.Sqrt(partial_b_l0) * d),
+                    1 / (Math.Sqrt(partial_b_l1) * d),
+                    1 / (Math.Sqrt(partial_b_l2) * d)
+                };
+            }
+
+            double[] partial_k = CalculateK(lengths, diameter);
+
+            // phi
+            double[] CalculatePhi(Vector<double> lengths) {
+                double l0, l1, l2;
+                l0 = lengths[0];
+                l1 = lengths[1];
+                l2 = lengths[2];
+
+                var A = Math.Sqrt(3) * (l2 + l1 - 2 * l0);
+                var B = 3 * (l2 - l1);
+
+                var partial_phi_l0 = -2 * Math.Sqrt(3) * B / (A + Math.Pow(B, 2));
+                var partial_phi_l1 = (Math.Sqrt(3) * B - 3 * A) / (A + Math.Pow(B, 2));
+                var partial_phi_l2 = (Math.Sqrt(3) * B + 3 * A) / (A + Math.Pow(B, 2));
+
+                return new double[] { partial_phi_l0, partial_phi_l1, partial_phi_l2 };
+            }
+
+            double[] partial_phi = CalculatePhi(lengths);
+
+            return Matrix<double>.Build.DenseOfRowArrays(new double[][] { partial_s, partial_k, partial_phi });
+        }
+
+        public static Matrix<double> MakeJacobianMatrix_DH_F1(Vector<double> lengths, double diameter, int numOfSegments) {
             double l0, l1, l2;
-            
             l0 = lengths[0];
             l1 = lengths[1];
             l2 = lengths[2];
 
-            int n = numOfSegments;
-            double d = diameter;
+            var d = diameter;
+            var n = numOfSegments;
 
-
-            // s
             var A = l0 + l1 + l2;
             var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
-            var u = n * d * A / Math.Sqrt(B);
-            var v = Math.Asin(Math.Sqrt(B) / (3 * n * d));
 
-            var partial_a_l0 = 1;
-            var partial_a_l1 = 1;
-            var partial_a_l2 = 1;
-            var partial_b_l0 = 2 * l0 - l1 - l2;
-            var partial_b_l1 = 2 * l1 - l0 - l2;
-            var partial_b_l2 = 2 * l2 - l0 - l1;
-
-            double partial_u_l0 = (n * d * Math.Sqrt(B) * partial_a_l0 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l0) / B;
-            double partial_u_l1 = (n * d * Math.Sqrt(B) * partial_a_l1 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l1) / B;
-            double partial_u_l2 = (n * d * Math.Sqrt(B) * partial_a_l2 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l2) / B;
-
-            double partial_v_l0 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l0;
-            double partial_v_l1 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l1;
-            double partial_v_l2 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l2;
-
-            double partial_s_l0 = partial_u_l0 * v + partial_v_l0 * u;
-            double partial_s_l1 = partial_u_l1 * v + partial_v_l1 * u;
-            double partial_s_l2 = partial_u_l2 * v + partial_v_l2 * u;
-
-
-            // k 
-            double partial_k_l0 = 1 / (Math.Sqrt(partial_b_l0) * d);
-            double partial_k_l1 = 1 / (Math.Sqrt(partial_b_l1) * d);
-            double partial_k_l2 = 1 / (Math.Sqrt(partial_b_l2) * d);
-
-            // phi: TODO
-            double partial_phi_l0 = 0;
-            double partial_phi_l1 = 0;
-            double partial_phi_l2 = 0;
-
-            return Matrix<double>.Build.DenseOfArray(new double[,] {
-                { partial_s_l0, partial_k_l0, partial_phi_l0 },
-                { partial_s_l1, partial_k_l1, partial_phi_l1 },
-                { partial_s_l2, partial_k_l2, partial_phi_l2 }
-            }).Transpose();
-        }
-
-        public static Matrix<double> MakeJacobianMatrix_DH_F1() {
-            double s = 0, kappa= 0, phi = 0;
+            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
+            double kappa = 2 * Math.Sqrt(B) / d / A;
+            double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
 
             var ks = kappa * s;
             var C_ks = Math.Cos(ks);
@@ -168,6 +205,69 @@ namespace ConventionalIK {
                 { e61, e62, e63 },
             });
         }
+
+        public static Matrix<double> MakeJacobian(Vector<double> lengths, double diameter, int numOfSegments) {
+            Matrix<double> J1 = MakeJacobianMatrix_DH_F1(lengths, diameter, numOfSegments);
+            Matrix<double> J2 = MakeJacobianMatrix_F2(lengths, diameter, numOfSegments);
+
+            return J1 * J2;
+        }
+
+        public Vector<double> ForwardKinematics(Vector<double> lengths, double diameter, int numOfSegments) {
+            double l0, l1, l2;
+            l0 = lengths[0];
+            l1 = lengths[1];
+            l2 = lengths[2];
+
+            var d = diameter;
+            var n = numOfSegments;
+
+            var A = l0 + l1 + l2;
+            var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
+
+            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
+            double kappa = 2 * Math.Sqrt(B) / d / A;
+            double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+
+            double c_phi = Math.Cos(phi);
+            double c_ks = Math.Cos(kappa * s);
+            double s_phi = Math.Sin(phi);
+            double s_ks = Math.Sin(kappa * s);
+
+            Matrix<double> T = Matrix<double>.Build.DenseOfArray(new double[,] {
+                { c_phi * c_phi *(c_ks - 1) + 1, s_phi*c_phi*(c_ks - 1), -c_phi*s_ks, c_phi*(c_ks - 1)/kappa },
+                { s_phi*c_phi*(c_ks - 1), c_phi*c_phi*(1-c_ks)+ c_ks, -s_phi*s_ks, s_phi*(c_ks -1)/kappa },
+                { c_phi*s_ks, s_phi*s_ks, c_ks, s_ks/kappa },
+                { 0, 0, 0, 1 }
+            });
+
+            return T * Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi });
+        }
+
+        public IEnumerable<Vector<double>> IK_JacobianTranspose(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
+            Matrix<double> J = MakeJacobian(currL, diameter, numOfSegments);
+            Matrix<double> JT = J.Clone();
+
+            JT.Transpose();
+            double alpha = 0.1;
+            double thereshold = 0.01;
+
+            Vector<double> currE = ForwardKinematics(currL, diameter, numOfSegments);
+            Vector<double> nextL = Vector<double>.Build.Dense(4, 0.0);
+
+            while ((desiredE - currE).Norm(2) < thereshold) {
+                currE = ForwardKinematics(currL, diameter, numOfSegments);
+                nextL = currL + alpha * JT * (desiredE - currE);
+
+                yield return nextL;
+            }
+
+            yield break;
+        }
+
+        //public IEnumerable<Vector<double>> IK_JacobianTranspose_r(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
+
+        //}
     }
 
 }
