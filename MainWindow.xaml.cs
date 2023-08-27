@@ -29,6 +29,8 @@ namespace ConventionalIK {
     /// </summary>
     public partial class MainWindow : Window {
         public Vector3D GridNormal { get; set; } = new Vector3D(0, 1, 0);
+
+        public string CurrentPose { get; set; } = "";
         
         public Point3DCollection ArcPath { get; private set; }
         public MeshGeometry3D YourMesh { get; private set; }
@@ -73,7 +75,7 @@ namespace ConventionalIK {
             //planeVisual.Content = 
         }
 
-        public void ComputeArcPoints(double kappa, double arcLength, double phi) {
+        public void ComputeArcPoints(double s, double kappa, double phi) {
             var arcPoints = new List<Vector3d>();
             var radius = 1 / kappa;
             var center = new Vector3d(radius, 0, 0);
@@ -81,10 +83,10 @@ namespace ConventionalIK {
 
             Point3DCollection path;
             if (kappa == 0)
-                path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, arcLength) });
+                path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, s) });
             else {
                 int numSegments = 10;  // The number of segments to use to draw the arc. Adjust as needed.
-                double angleIncrement = arcLength / radius / numSegments;
+                double angleIncrement = s / radius / numSegments;
 
                 // Compute the normal to the arc's plane which is the cross product of the startVector and the y-axis
                 //var normal = new Vector3d(0, -1, 0);
@@ -239,9 +241,30 @@ namespace ConventionalIK {
                 var radius = 1 / kappa;
 
                 // Create a 3D arc path
-                ComputeArcPoints(kappa, s, phi);
+                ComputeArcPoints(s, kappa, phi);
 
                 CreatePlaneWithNormal(phi);
+
+                var pose = Kinematics.ForwardKinematics(l, 4, 1);
+
+                CurrentPose = pose.ToString();
+
+                var sphere = new SphereVisual3D {
+                    Material = new DiffuseMaterial {
+                        Brush = new SolidColorBrush(Colors.Blue) {
+                            Opacity = 0.5
+                        }
+                    },
+                    Center = new Point3D(pose[0], pose[1], pose[2]),
+                    Radius = 1,
+                };
+
+                var visual = view1.Children.OfType<SphereVisual3D>().FirstOrDefault();
+                
+                view1.Children.Remove(visual);
+
+                view1.Children.Add(sphere);
+
 
                 InvalidateVisual();
             }

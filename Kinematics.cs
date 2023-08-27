@@ -213,7 +213,7 @@ namespace ConventionalIK {
             return J1 * J2;
         }
 
-        public Vector<double> ForwardKinematics(Vector<double> lengths, double diameter, int numOfSegments) {
+        public static Vector<double> ForwardKinematics(Vector<double> lengths, double diameter, int numOfSegments) {
             double l0, l1, l2;
             l0 = lengths[0];
             l1 = lengths[1];
@@ -227,7 +227,41 @@ namespace ConventionalIK {
 
             double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
             double kappa = 2 * Math.Sqrt(B) / d / A;
-            double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+            double phi = double.NaN;
+
+            //if (l1 > l2) {
+            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+            //}
+            //else if (l1 < l2) {
+            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
+            //}
+            //else if (l1 == l2) {
+            //    if (l0 > l1) {
+            //        phi = 3 * Math.PI / 2;
+            //    }
+            //    else if (l0 < l1) {
+            //        phi = Math.PI / 2;
+            //    }
+            //}
+            //else
+            //    phi = double.NaN;
+
+            if (l1 < l2) {
+                phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+            }
+            else if (l1 > l2) {
+                phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
+            }
+            else if (l1 == l2) {
+                if (l0 < l1) {
+                    phi = 3 * Math.PI / 2;
+                }
+                else if (l0 > l1) {
+                    phi = Math.PI / 2;
+                }
+            }
+            else
+                phi = double.NaN;
 
             double c_phi = Math.Cos(phi);
             double c_ks = Math.Cos(kappa * s);
@@ -235,13 +269,13 @@ namespace ConventionalIK {
             double s_ks = Math.Sin(kappa * s);
 
             Matrix<double> T = Matrix<double>.Build.DenseOfArray(new double[,] {
-                { c_phi * c_phi *(c_ks - 1) + 1, s_phi*c_phi*(c_ks - 1), -c_phi*s_ks, c_phi*(c_ks - 1)/kappa },
-                { s_phi*c_phi*(c_ks - 1), c_phi*c_phi*(1-c_ks)+ c_ks, -s_phi*s_ks, s_phi*(c_ks -1)/kappa },
-                { c_phi*s_ks, s_phi*s_ks, c_ks, s_ks/kappa },
+                { c_phi * c_phi * (c_ks - 1) + 1, s_phi * c_phi * (c_ks - 1), -c_phi * s_ks, c_phi * (c_ks - 1) / kappa },
+                { s_phi * c_phi * (c_ks - 1), c_phi * c_phi * (1 - c_ks) + c_ks, -s_phi * s_ks, s_phi * (c_ks - 1) / kappa },
+                { c_phi * s_ks, s_phi * s_ks, c_ks, s_ks / kappa },
                 { 0, 0, 0, 1 }
             });
 
-            return T * Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi });
+            return T * Vector<double>.Build.DenseOfArray(new double[] { 0, 0, 0, 1 });
         }
 
         public IEnumerable<Vector<double>> IK_JacobianTranspose(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {

@@ -34,5 +34,20 @@
                 <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,0,1"/>
             </helix:HelixViewport3D.Camera>
         </helix:HelixViewport3D>
+        <Grid Margin="0,0,603,371" >
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+
+            </Grid.ColumnDefinitions>
+            <Label Grid.Row="0" Grid.Column="0" Content="Current Pose" HorizontalAlignment="Center"/>
+            <Label Grid.Row="1" Grid.Column="0"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPose}" HorizontalAlignment="Center"/>
+        </Grid>
     </Grid>
 </Window>
