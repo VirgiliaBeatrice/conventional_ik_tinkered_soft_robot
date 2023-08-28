@@ -37,7 +37,7 @@ namespace ConventionalIK {
 
         public MainWindow() {
             InitializeComponent();
-            DataContext = this;
+            //DataContext = this;
 
             //var l = Vector<double>.Build.DenseOfArray(new double[] { 8, 2, 8 });
             //var l = Vector<double>.Build.DenseOfArray(new double[] { 2, 8, 8 });

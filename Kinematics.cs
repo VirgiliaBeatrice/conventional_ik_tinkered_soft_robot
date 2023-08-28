@@ -229,39 +229,39 @@ namespace ConventionalIK {
             double kappa = 2 * Math.Sqrt(B) / d / A;
             double phi = double.NaN;
 
-            //if (l1 > l2) {
-            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
-            //}
-            //else if (l1 < l2) {
-            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
-            //}
-            //else if (l1 == l2) {
-            //    if (l0 > l1) {
-            //        phi = 3 * Math.PI / 2;
-            //    }
-            //    else if (l0 < l1) {
-            //        phi = Math.PI / 2;
-            //    }
-            //}
-            //else
-            //    phi = double.NaN;
-
-            if (l1 < l2) {
+            if (l1 > l2) {
                 phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
             }
-            else if (l1 > l2) {
+            else if (l1 < l2) {
                 phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
             }
             else if (l1 == l2) {
-                if (l0 < l1) {
+                if (l0 > l1) {
                     phi = 3 * Math.PI / 2;
                 }
-                else if (l0 > l1) {
+                else if (l0 < l1) {
                     phi = Math.PI / 2;
                 }
             }
             else
                 phi = double.NaN;
+
+            //if (l1 < l2) {
+            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+            //}
+            //else if (l1 > l2) {
+            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
+            //}
+            //else if (l1 == l2) {
+            //    if (l0 < l1) {
+            //        phi = 3 * Math.PI / 2;
+            //    }
+            //    else if (l0 > l1) {
+            //        phi = Math.PI / 2;
+            //    }
+            //}
+            //else
+            //    phi = double.NaN;
 
             double c_phi = Math.Cos(phi);
             double c_ks = Math.Cos(kappa * s);
@@ -302,6 +302,33 @@ namespace ConventionalIK {
         //public IEnumerable<Vector<double>> IK_JacobianTranspose_r(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
 
         //}
+
+        public static Matrix<double> MakeDHTransformMatrix(double theta, double d, double r, double alpha) {
+            var s_theta = Math.Sin(theta);
+            var c_theta = Math.Cos(theta);
+            var s_alpha = Math.Sin(alpha);
+            var c_alpha = Math.Cos(alpha);
+
+
+            return Matrix<double>.Build.DenseOfArray(new double[,] {
+                {c_theta, -s_theta*c_alpha, s_theta * s_alpha, r * c_theta},
+                {s_theta, c_theta * c_alpha, -c_theta * s_alpha, r * s_theta},
+                {0, s_alpha, c_alpha, d},
+                {0, 0, 0, 1}
+            });
+        }
+
+        public static Matrix<double> MakeDHTransformMatrix(Matrix<double> table) {
+            Matrix<double> T = Matrix<double>.Build.DenseIdentity(4);
+
+            for(int i=0;i<table.RowCount;i++) {
+                var Ti = MakeDHTransformMatrix(table[i, 0], table[i, 1], table[i, 2], table[i, 3]);
+
+                T *= Ti;
+            }
+
+            return T;
+        }
     }
 
 }

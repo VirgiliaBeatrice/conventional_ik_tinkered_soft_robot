@@ -8,12 +8,19 @@
         xmlns:vm="clr-namespace:ConventionalIK"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800" KeyDown="Window_KeyDown">
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
 
+    <Window.InputBindings>
+        <KeyBinding Key="S" Command="{Binding MakeJointsCommand}" />
+    </Window.InputBindings>
     <Grid>
-        <helix:HelixViewport3D x:Name="view1" Background="Gray">
+        <helix:HelixViewport3D x:Name="view1" Background="Gray" ItemsSource="{Binding Objects}">
             <!-- Lighting -->
             <helix:SunLight/>
 
+            <ModelVisual3D Content="{Binding Group}" />
             <!-- 3D Arc (Portion of Cylinder to Represent Arc) -->
             <helix:TubeVisual3D Path="{Binding ArcPath}" Diameter="0.05" Fill="Blue" />
 
@@ -34,7 +41,7 @@
                 <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,0,1"/>
             </helix:HelixViewport3D.Camera>
         </helix:HelixViewport3D>
-        <Grid Margin="0,0,603,371" >
+        <Grid Width="200" Height="50" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition />
                 <RowDefinition />
