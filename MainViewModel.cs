@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -21,11 +22,13 @@ namespace ConventionalIK {
             if (matrix.RowCount != 4 || matrix.ColumnCount != 4)
                 throw new ArgumentException("Matrix must be 4x4 to convert to MatrixTransform3D");
 
+            var t = matrix.Transpose();
+
             return new MatrixTransform3D(new Matrix3D(
-                matrix[0, 0], matrix[0, 1], matrix[0, 2], matrix[3, 0],
-                matrix[1, 0], matrix[1, 1], matrix[1, 2], matrix[3, 1],
-                matrix[2, 0], matrix[2, 1], matrix[2, 2], matrix[3, 2],
-                matrix[0, 3], matrix[1, 3], matrix[2, 3], matrix[3, 3]
+                t[0, 0], t[0, 1], t[0, 2], t[0, 3],
+                t[1, 0], t[1, 1], t[1, 2], t[1, 3],
+                t[2, 0], t[2, 1], t[2, 2], t[2, 3],
+                t[3, 0], t[3, 1], t[3, 2], t[3, 3]
                                                                                        ));
         }
 
@@ -46,17 +49,28 @@ namespace ConventionalIK {
             
         }
 
+        public List<Visual3D> JointObjects { get; set; } = new List<Visual3D>();
+
         [RelayCommand]
         private void MakeAllJoints() {
-            var list = Objects.OfType<JointModel3D>().ToList();
+            JointObjects.ForEach(e => Objects.Remove(e));
 
-            list.ForEach(e => Objects.Remove(e));
+            var arc = Kinematics.GetSingleSectionArcParameters(Vector<double>.Build.DenseOfArray(new double[] { 4, 4, 2 }), 1, 2);
 
-            var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
+            //var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
+            var s = arc[0];
+            var kappa = arc[1];
+            var radius = 1 / kappa;
+            var phi = arc[2];
+            var theta = s / radius;
 
-            var theta1 = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
-            var theta2 = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
-            var d = 2;
+            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}");
+
+            var theta1 = Math.PI / 2 - theta / 2;
+            var theta2 = -theta / 2;
+            var d = Math.Sin(theta / 2) / kappa * 2;
+
+            Debug.WriteLine($"Theta: {theta}");
 
             var j0 = new JointModel3D("Joint0");
             var j1 = new JointModel3D("Joint1");
@@ -64,10 +78,10 @@ namespace ConventionalIK {
             var j3 = new JointModel3D("Joint3");
             var j4 = new JointModel3D("Joint4");
                 
-            var A01 = Kinematics.MakeDHTransformMatrix(0, 0, 0, Math.PI/2);
-            var A12 = Kinematics.MakeDHTransformMatrix(0, d, 0, 0);
-            var A23 = Kinematics.MakeDHTransformMatrix(0, 0, d, 0);
-            var A34 = Kinematics.MakeDHTransformMatrix(theta2, 0, 0, Math.PI/2);
+            var A01 = Kinematics.MakeDHTransformMatrix(phi, 0, 0, Math.PI / 2);
+            var A12 = Kinematics.MakeDHTransformMatrix(theta1, 0, d, 0);
+            var A23 = Kinematics.MakeDHTransformMatrix(theta2, 0, 0, -Math.PI / 2);
+            var A34 = Kinematics.MakeDHTransformMatrix(0, 0, 0, 0);
 
             var A04 = A01 * A12 * A23 * A34;
             var A03 = A01 * A12 * A23;
@@ -78,32 +92,79 @@ namespace ConventionalIK {
             var TA02 = Helper.ConvertToMatrixTransform3D(A02);
             var TA01 = Helper.ConvertToMatrixTransform3D(A01);
 
-            var t1 = Matrix3D.Identity;
-            t1.Rotate(new System.Windows.Media.Media3D.Quaternion(new Vector3D(0, 0, 1), -30));
-
-            var t2 = t1;
-            t2.Rotate(new System.Windows.Media.Media3D.Quaternion(new Vector3D(1, 0, 0), -90));
-            var t3 = t2;
-            t3.Translate(new Vector3D(d, 0, 0));
-
+            //Debug.WriteLine(TA01.Value);
             //t2.Children.Add(t1);
             //t2.Children.Add(new TranslateTransform3D(d, 0, 0));
             //t2.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 30)));
 
             // Draw a reference arc
-            j1.Transform = new MatrixTransform3D(t1);
+            j1.Transform = TA01;
             //j1.Transform = TA01;
-            j2.Transform = new MatrixTransform3D(t2);
-            j3.Transform = new MatrixTransform3D(t3);
+            j2.Transform = TA02;
+            j3.Transform = TA03;
             //j4.Transform = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0,0), -90));
 
 
             // add all joints into Objects
-            //Objects.Add(j0);
-            //Objects.Add(j1);
+            Objects.Add(j0);
+            Objects.Add(j1);
             Objects.Add(j2);
             Objects.Add(j3);
             //Objects.Add(j4);
+
+            JointObjects.Add(j0);
+            JointObjects.Add(j1);
+            JointObjects.Add(j2);
+            JointObjects.Add(j3);
+
+            var arcPoints = new List<Vector3d>();
+            Point3DCollection path;
+            if (kappa == 0)
+                path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, s) });
+            else {
+                int numSegments = 10;  // The number of segments to use to draw the arc. Adjust as needed.
+                double angleIncrement = s / radius / numSegments;
+
+                // Compute the normal to the arc's plane which is the cross product of the startVector and the y-axis
+                //var normal = new Vector3d(0, -1, 0);
+                //phi = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
+                var rotationMatrix = Quaterniond.FromAxisAngle(new Vector3d(0, 0, 1), phi);
+
+
+                for (int i = 0; i <= numSegments; i++) {
+                    double alpha = i * angleIncrement;
+
+                    Vector3d point = new Vector3d(radius * (1 - Math.Cos(alpha)), 0, radius * Math.Sin(alpha));
+
+                    point = Vector3d.Transform(point, rotationMatrix);
+
+                    arcPoints.Add(point);
+                }
+
+                path = new Point3DCollection(arcPoints.Select(e1 => new Point3D(e1.X, e1.Y, e1.Z)));
+            }
+
+            var tube = new TubeVisual3D {
+                Path = path,
+                Material = new DiffuseMaterial {
+                    Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+                },
+                BackMaterial = new DiffuseMaterial {
+                    Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+                },
+                Diameter = 0.5,
+            };
+
+            Objects.Add(tube);
+            JointObjects.Add(tube);
+
+            var sp = new SphereVisual3D {
+                Center = new Point3D(0, 0, 8),
+                Fill = Brushes.Red,
+                Radius = 0.1,
+            };
+            Objects.Add(sp);
+            JointObjects.Add(sp);
         }
 
         
@@ -154,12 +215,17 @@ namespace ConventionalIK {
         private CoordinateSystemVisual3D coordinateSystem;
         private BillboardTextVisual3D jointLabel;
 
+        public double Opacity { get; set; } = 1.0d;
+
         public JointModel3D(string label = "Joint", double labelOffset = 0.6) {
+            // Adjust opacity with Opacity
+
+
             // 1. Joint represented by a tube (cylinder-like)
             jointTube = new TubeVisual3D {
                 Path = new Point3DCollection { new Point3D(0, 0, -0.2), new Point3D(0, 0, 0.2) },
                 Diameter = 0.05,
-                Fill = Brushes.Gray
+                Fill = Brushes.Gray,
             };
 
             // 2. Bounding Box
@@ -180,8 +246,8 @@ namespace ConventionalIK {
             jointLabel = new BillboardTextVisual3D {
                 Text = label,
                 Position = new Point3D(0, 0, labelOffset),
-                Foreground = Brushes.White,
-                Background = Brushes.Black,
+                Foreground = Brushes.Black,
+                //Background = Brushes.Black,
                 Width=4,
                 FontSize = 20,
             };

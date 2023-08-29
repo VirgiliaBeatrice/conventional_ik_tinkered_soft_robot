@@ -275,6 +275,8 @@ namespace ConventionalIK {
                 { 0, 0, 0, 1 }
             });
 
+            //Matrix<double> T = Kinematics.MakeDHTransformMatrix(Matrix<double> )
+
             return T * Vector<double>.Build.DenseOfArray(new double[] { 0, 0, 0, 1 });
         }
 

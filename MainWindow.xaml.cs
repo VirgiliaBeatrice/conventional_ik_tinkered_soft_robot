@@ -78,8 +78,8 @@ namespace ConventionalIK {
         public void ComputeArcPoints(double s, double kappa, double phi) {
             var arcPoints = new List<Vector3d>();
             var radius = 1 / kappa;
-            var center = new Vector3d(radius, 0, 0);
-            var start = new Vector3d(0, 0, 0);
+            //var center = new Vector3d(radius, 0, 0);
+            //var start = new Vector3d(0, 0, 0);
 
             Point3DCollection path;
             if (kappa == 0)
