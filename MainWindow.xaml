@@ -13,10 +13,12 @@
     </Window.DataContext>
 
     <Window.InputBindings>
-        <KeyBinding Key="S" Command="{Binding MakeJointsCommand}" />
+        <KeyBinding Key="S" Command="{Binding MakeAllJointsCommand}" />
     </Window.InputBindings>
     <Grid>
-        <helix:HelixViewport3D x:Name="view1" Background="Gray" ItemsSource="{Binding Objects}">
+        <helix:HelixViewport3D x:Name="view1" Background="White" ItemsSource="{Binding Objects}"
+                               CameraRotationMode="Turntable"
+                               ShowCoordinateSystem="True">
             <!-- Lighting -->
             <helix:SunLight/>
 

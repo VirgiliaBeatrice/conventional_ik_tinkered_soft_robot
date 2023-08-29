@@ -309,13 +309,20 @@ namespace ConventionalIK {
             var s_alpha = Math.Sin(alpha);
             var c_alpha = Math.Cos(alpha);
 
-
-            return Matrix<double>.Build.DenseOfArray(new double[,] {
-                {c_theta, -s_theta*c_alpha, s_theta * s_alpha, r * c_theta},
-                {s_theta, c_theta * c_alpha, -c_theta * s_alpha, r * s_theta},
-                {0, s_alpha, c_alpha, d},
+            var Z = Matrix<double>.Build.DenseOfArray(new double[,] {
+                {c_theta, -s_theta, 0, 0 },
+                { s_theta, c_theta, 0, 0 },
+                { 0, 0, 1, d },
                 {0, 0, 0, 1}
             });
+            var X = Matrix<double>.Build.DenseOfArray(new double[,] {
+                {1,0,0,r },
+                {0, c_alpha, -s_alpha, 0},
+                {0, s_alpha, c_alpha, 0},
+                {0, 0, 0, 1 }
+            });
+
+            return Z * X;
         }
 
         public static Matrix<double> MakeDHTransformMatrix(Matrix<double> table) {
