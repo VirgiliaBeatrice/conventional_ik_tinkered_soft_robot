@@ -1,12 +1,15 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
-using System.Security.Permissions;
+using System.Threading.Tasks.Dataflow;
+using System.Windows;
 
 namespace ConventionalIK {
+
     public class Kinematics {
 
-        public Kinematics() { }
+        public Kinematics() {
+        }
 
         // Forward Kinematics
         // Kappa: Curvature
@@ -165,8 +168,22 @@ namespace ConventionalIK {
             double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
             double kappa = 2 * Math.Sqrt(B) / d / A;
             double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
-
+            double radius = 1 / kappa;
+            double theta = s * kappa;
             var ks = kappa * s;
+            var Rad90 = Math.PI / 2;
+            var theta1 = Rad90 - theta / 2;
+            var theta2 = -theta / 2;
+            var di = Math.Sin(theta / 2) / kappa * 2;
+
+            var DHTable = Matrix<double>.Build.DenseOfArray(new double[,] {
+                {phi, 0,0, Rad90},
+                {theta1, 0, di,0 },
+                {theta2,0,0,-Rad90 },
+            });
+
+            var T_DH = MakeDHTransformMatrix(DHTable);
+
             var C_ks = Math.Cos(ks);
             var S_ks = Math.Sin(ks);
             var C_phi = Math.Cos(phi);
@@ -301,9 +318,6 @@ namespace ConventionalIK {
             yield break;
         }
 
-        //public IEnumerable<Vector<double>> IK_JacobianTranspose_r(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
-
-        //}
 
         public static Matrix<double> MakeDHTransformMatrix(double theta, double d, double r, double alpha) {
             var s_theta = Math.Sin(theta);
@@ -328,9 +342,9 @@ namespace ConventionalIK {
         }
 
         public static Matrix<double> MakeDHTransformMatrix(Matrix<double> table) {
-            Matrix<double> T = Matrix<double>.Build.DenseIdentity(4);
+            Matrix<double> T = Matrix<double>.Build.DenseIdentity(4, 4);
 
-            for(int i=0;i<table.RowCount;i++) {
+            for (int i = 0; i < table.RowCount; i++) {
                 var Ti = MakeDHTransformMatrix(table[i, 0], table[i, 1], table[i, 2], table[i, 3]);
 
                 T *= Ti;
@@ -339,5 +353,4 @@ namespace ConventionalIK {
             return T;
         }
     }
-
 }

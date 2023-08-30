@@ -92,18 +92,11 @@ namespace ConventionalIK {
             var TA02 = Helper.ConvertToMatrixTransform3D(A02);
             var TA01 = Helper.ConvertToMatrixTransform3D(A01);
 
-            //Debug.WriteLine(TA01.Value);
-            //t2.Children.Add(t1);
-            //t2.Children.Add(new TranslateTransform3D(d, 0, 0));
-            //t2.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 30)));
-
             // Draw a reference arc
             j1.Transform = TA01;
-            //j1.Transform = TA01;
             j2.Transform = TA02;
             j3.Transform = TA03;
             //j4.Transform = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0,0), -90));
-
 
             // add all joints into Objects
             Objects.Add(j0);
