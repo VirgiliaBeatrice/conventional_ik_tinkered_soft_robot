@@ -234,7 +234,7 @@ namespace ConventionalIK {
                 // select a element according to idx from selection
                 var l = selection[Index];
 
-                var arc = Kinematics.GetSingleSectionArcParameters(l, 1, 4);
+                var arc = Kinematics.MakeTransformMatrixF2(l, 1, 4);
                 var s = arc[0];
                 var kappa = arc[1];
                 var phi = arc[2];

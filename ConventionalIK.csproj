@@ -11,6 +11,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
     <PackageReference Include="HelixToolkit.Wpf" Version="2.24.0" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="MathNet.Spatial" Version="0.6.0" />
     <PackageReference Include="OpenTK" Version="4.8.0" />
   </ItemGroup>
 

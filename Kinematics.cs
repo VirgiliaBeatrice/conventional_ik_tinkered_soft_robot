@@ -1,21 +1,44 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+﻿using MathNet.Numerics.Integration;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks.Dataflow;
 using System.Windows;
+using MathNet.Spatial;
+using MathNet.Spatial.Euclidean;
+using MathNet.Spatial.Units;
+using System.Threading;
+using MathNet.Numerics.LinearAlgebra.Double;
+using HelixToolkit.Wpf;
 
 namespace ConventionalIK {
 
     public class Kinematics {
 
+        public int NumSegments { get; set; } = 1;
+        public double Diameter { get; set; } = 1;
+
         public Kinematics() {
+        }
+
+        public Kinematics(int numSegments, double diameter) {
+            NumSegments = numSegments;
+            Diameter = diameter;
+        }
+
+        public void ComputeEEPose(double[] lengths) {
+            var l = Vector<double>.Build.DenseOfArray(lengths);
+
+            var fkResults = ForwardKinematics(l, Diameter, NumSegments);
+
+            //return fkResults[2];
         }
 
         // Forward Kinematics
         // Kappa: Curvature
         // Phi: angle
         // S: Length
-        public static Vector<double> GetSingleSectionArcParameters(Vector<double> l, int numOfSegments, double diameter) {
+        public static Vector<double> MakeTransformMatrixF2(Vector<double> l, int numOfSegments, double diameter) {
             var l0 = l[0];
             var l1 = l[1];
             var l2 = l[2];
@@ -73,7 +96,7 @@ namespace ConventionalIK {
             return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
         }
 
-        public static Matrix<double> MakeJacobianMatrix_F2(Vector<double> lengths, double diameter, int numOfSegments) {
+        public static Matrix<double> MakeJacobianF2(Vector<double> lengths, double diameter, int numOfSegments) {
             double[] CalculateS(Vector<double> lengths, double d, int n) {
                 double l0, l1, l2;
                 l0 = lengths[0];
@@ -182,7 +205,7 @@ namespace ConventionalIK {
                 {theta2,0,0,-Rad90 },
             });
 
-            var T_DH = MakeDHTransformMatrix(DHTable);
+            var T_DH = MakeTransformMatrixDH(DHTable);
 
             var C_ks = Math.Cos(ks);
             var S_ks = Math.Sin(ks);
@@ -223,14 +246,98 @@ namespace ConventionalIK {
             });
         }
 
-        public static Matrix<double> MakeJacobian(Vector<double> lengths, double diameter, int numOfSegments) {
-            Matrix<double> J1 = MakeJacobianMatrix_DH_F1(lengths, diameter, numOfSegments);
-            Matrix<double> J2 = MakeJacobianMatrix_F2(lengths, diameter, numOfSegments);
+        //public static Matrix<double> MakeJacobian(Vector<double> lengths, double diameter, int numOfSegments) {
+        //    var arc = MakeTransformMatrixF2(lengths, numOfSegments, diameter);
 
-            return J1 * J2;
+        //    Matrix<double> JDH = MakeJacobianDH(arc[0], arc[1], arc[2]);
+        //    Matrix<double> JF1 = MakeJacobianF1(arc[0], arc[1], arc[2]);
+        //    Matrix<double> J2 = MakeJacobianF2(lengths, diameter, numOfSegments);
+
+        //    return J1 * J2;
+        //}
+
+        public static Matrix<double> MakeJacobianF1(double s, double kappa, double phi) {
+            var e11 = 0;
+            var e12 = 0;
+            var e13 = 1;
+            var e21 = -kappa / 2;
+            var e22 = -s / 2;
+            var e23 = 0;
+            var e31 = -kappa / 2;
+            var e32 = -s / 2;
+            var e33 = 0;
+            var e41 = 2 * Math.Cos(s * kappa / 2);
+            var e42 = 2 * Math.Cos(s * kappa / 2) * s / kappa;
+            var e43 = 0;
+
+            return Matrix<double>.Build.DenseOfArray(new double[,] {
+                { e11, e12, e13 },
+                { 0, 0, 0 },
+                { 0, 0, 0 },
+                { 0, 0, 0 },
+
+                { e21, e22, e23 },
+                { 0, 0, 0 },
+                { e41, e42, e43 },
+                { 0, 0, 0 },
+
+                { e31, e32, e33 },
+                { 0, 0, 0 },
+                { 0, 0, 0 },
+                { 0, 0, 0 },
+            });
         }
 
-        public static Vector<double> ForwardKinematics(Vector<double> lengths, double diameter, int numOfSegments) {
+        public static Matrix<double> MakeJacobianDH(Matrix<double> table) {
+            var Tee = MakeTransformMatrixDH(table.SubMatrix(0, table.RowCount, 1, table.ColumnCount - 1));
+            var Oee = Vector3D.OfVector(Tee.Column(3).SubVector(0, 3));
+
+            Vector<double> MakeJacobianDHForRevoluteJoint(Vector3D Zprev, Vector3D Oprev) {
+                var JiV = Zprev.CrossProduct(Oee - Oprev);
+                var JiW = Zprev;
+
+                // return JiV appends JiW
+                return Vector<double>.Build.DenseOfArray(new double[] { JiV.X, JiV.Y, JiV.Z, JiW.X, JiW.Y, JiW.Z });
+            }
+
+            Vector<double> MakeDHForPrismaticJoint(Vector3D Zprev) {
+                var JiV = Zprev;
+                var JiW = new Vector3D();
+
+                return Vector<double>.Build.DenseOfArray(new double[] { JiV.X, JiV.Y, JiV.Z, JiW.X, JiW.Y, JiW.Z });
+            }
+
+            var Zprev = new Vector3D(0, 0, 1);
+            var Oprev = new Vector3D(0, 0, 0);
+
+            Matrix<double> JDH = Matrix<double>.Build.Dense(6, table.RowCount);
+
+            for(int i = 0; i<table.RowCount; i++) {
+
+                var type = table[i, 0];
+                var theta = table[i, 1];
+                var d = table[i, 2];
+                var a = table[i, 3];
+                var alpha = table[i, 4];
+                var Ti = MakeTransformMatrixDH(theta, d, a, alpha);
+
+                Vector<double> Ji;
+
+                if (type == 0)
+                    Ji = MakeJacobianDHForRevoluteJoint(Zprev, Oprev);
+                else
+                    Ji = MakeDHForPrismaticJoint(Zprev);
+
+                Zprev = Vector3D.OfVector(Ti * Zprev.ToVector());
+                Oprev = Vector3D.OfVector(Ti.Column(3).SubVector(0, 3));
+
+                JDH.SetColumn(i, Ji);
+            }
+
+            return JDH;
+        }
+
+        public static object[] ForwardKinematics(Vector<double> lengths, double diameter, int numOfSegments) {
             double l0, l1, l2;
             l0 = lengths[0];
             l1 = lengths[1];
@@ -263,54 +370,53 @@ namespace ConventionalIK {
             else
                 phi = double.NaN;
 
-            //if (l1 < l2) {
-            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
-            //}
-            //else if (l1 > l2) {
-            //    phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2)) + Math.PI;
-            //}
-            //else if (l1 == l2) {
-            //    if (l0 < l1) {
-            //        phi = 3 * Math.PI / 2;
-            //    }
-            //    else if (l0 > l1) {
-            //        phi = Math.PI / 2;
-            //    }
-            //}
-            //else
-            //    phi = double.NaN;
+            var theta0 = phi;
+            var theta1 = (Math.PI - s * kappa) / 2;
+            var theta2 = -s * kappa / 2;
+            var a = 2 * Math.Cos(s * kappa / 2) / kappa;
 
-            double c_phi = Math.Cos(phi);
-            double c_ks = Math.Cos(kappa * s);
-            double s_phi = Math.Sin(phi);
-            double s_ks = Math.Sin(kappa * s);
-
-            Matrix<double> T = Matrix<double>.Build.DenseOfArray(new double[,] {
-                { c_phi * c_phi * (c_ks - 1) + 1, s_phi * c_phi * (c_ks - 1), -c_phi * s_ks, c_phi * (c_ks - 1) / kappa },
-                { s_phi * c_phi * (c_ks - 1), c_phi * c_phi * (1 - c_ks) + c_ks, -s_phi * s_ks, s_phi * (c_ks - 1) / kappa },
-                { c_phi * s_ks, s_phi * s_ks, c_ks, s_ks / kappa },
-                { 0, 0, 0, 1 }
+            var q = Matrix<double>.Build.DenseOfArray(new double[,] {
+                { theta0,0,0, Math.PI / 2 },
+                { theta1, a, 0, 0 },
+                { theta2,0,0,-Math.PI / 2 }
             });
 
-            //Matrix<double> T = Kinematics.MakeDHTransformMatrix(Matrix<double> )
 
-            return T * Vector<double>.Build.DenseOfArray(new double[] { 0, 0, 0, 1 });
+            var TransformationEE = MakeTransformMatrixDH(q);
+
+            var Ree = TransformationEE.SubMatrix(0, 3, 0, 3);
+            var Tee = TransformationEE.SubMatrix(0, 3, 3, 1);
+
+            return new object[] {
+                Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi}),
+                Vector<double>.Build.DenseOfArray(q.AsRowMajorArray()),
+                TransformationEE
+            };
         }
 
-        public IEnumerable<Vector<double>> IK_JacobianTranspose(Vector<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
-            Matrix<double> J = MakeJacobian(currL, diameter, numOfSegments);
-            Matrix<double> JT = J.Clone();
+        public IEnumerable<Vector<double>> IK_JacobianTranspose(Matrix<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
 
-            JT.Transpose();
+            var fkResults = ForwardKinematics(currL, diameter, numOfSegments);
+
+            var arc = (Vector<double>)fkResults[0];
+            var q = (Vector<double>)fkResults[1];
+
+            var JF2 = MakeJacobianF2(currL, diameter, numOfSegments);
+            var JF1 = MakeJacobianF1(arc[0], arc[1], arc[2]);
+            var JDH = MakeJacobianDH(q.ToRowMatrix().Resize(3,4));
+
+            var J = JDH * JF1 * JF2;
+            var JT = J.Transpose();
+
             double alpha = 0.1;
             double thereshold = 0.01;
 
-            Vector<double> currE = ForwardKinematics(currL, diameter, numOfSegments);
+            Matrix<double> currE = (Matrix<double>)fkResults[2];
             Vector<double> nextL = Vector<double>.Build.Dense(4, 0.0);
 
-            while ((desiredE - currE).Norm(2) < thereshold) {
-                currE = ForwardKinematics(currL, diameter, numOfSegments);
-                nextL = currL + alpha * JT * (desiredE - currE);
+            while ((desiredE - currE).FrobeniusNorm() < thereshold) {
+                currE = (Matrix<double>)ForwardKinematics(currL, diameter, numOfSegments)[2];
+                nextL = currL + Vector<double>.Build.DenseOfArray((alpha * JT * (desiredE - currE)).ToColumnMajorArray());
 
                 yield return nextL;
             }
@@ -319,7 +425,7 @@ namespace ConventionalIK {
         }
 
 
-        public static Matrix<double> MakeDHTransformMatrix(double theta, double d, double r, double alpha) {
+        public static Matrix<double> MakeTransformMatrixDH(double theta, double d, double r, double alpha) {
             var s_theta = Math.Sin(theta);
             var c_theta = Math.Cos(theta);
             var s_alpha = Math.Sin(alpha);
@@ -341,11 +447,11 @@ namespace ConventionalIK {
             return Z * X;
         }
 
-        public static Matrix<double> MakeDHTransformMatrix(Matrix<double> table) {
+        public static Matrix<double> MakeTransformMatrixDH(Matrix<double> table) {
             Matrix<double> T = Matrix<double>.Build.DenseIdentity(4, 4);
 
             for (int i = 0; i < table.RowCount; i++) {
-                var Ti = MakeDHTransformMatrix(table[i, 0], table[i, 1], table[i, 2], table[i, 3]);
+                var Ti = MakeTransformMatrixDH(table[i, 0], table[i, 1], table[i, 2], table[i, 3]);
 
                 T *= Ti;
             }

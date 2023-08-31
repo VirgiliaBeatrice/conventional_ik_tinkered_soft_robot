@@ -55,7 +55,7 @@ namespace ConventionalIK {
         private void MakeAllJoints() {
             JointObjects.ForEach(e => Objects.Remove(e));
 
-            var arc = Kinematics.GetSingleSectionArcParameters(Vector<double>.Build.DenseOfArray(new double[] { 4, 4, 2 }), 1, 2);
+            var arc = Kinematics.MakeTransformMatrixF2(Vector<double>.Build.DenseOfArray(new double[] { 4, 4, 2 }), 1, 2);
 
             //var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
             var s = arc[0];
@@ -78,10 +78,10 @@ namespace ConventionalIK {
             var j3 = new JointModel3D("Joint3");
             var j4 = new JointModel3D("Joint4");
                 
-            var A01 = Kinematics.MakeDHTransformMatrix(phi, 0, 0, Math.PI / 2);
-            var A12 = Kinematics.MakeDHTransformMatrix(theta1, 0, d, 0);
-            var A23 = Kinematics.MakeDHTransformMatrix(theta2, 0, 0, -Math.PI / 2);
-            var A34 = Kinematics.MakeDHTransformMatrix(0, 0, 0, 0);
+            var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
+            var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, d, 0);
+            var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
+            var A34 = Kinematics.MakeTransformMatrixDH(0, 0, 0, 0);
 
             var A04 = A01 * A12 * A23 * A34;
             var A03 = A01 * A12 * A23;
