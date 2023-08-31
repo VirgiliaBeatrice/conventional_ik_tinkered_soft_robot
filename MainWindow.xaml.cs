@@ -255,7 +255,7 @@ namespace ConventionalIK {
                             Opacity = 0.5
                         }
                     },
-                    Center = new Point3D(pose[0], pose[1], pose[2]),
+                    //Center = new Point3D(pose[0], pose[1], pose[2]),
                     Radius = 1,
                 };
 

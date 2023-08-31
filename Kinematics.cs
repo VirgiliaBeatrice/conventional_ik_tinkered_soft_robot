@@ -10,28 +10,36 @@ using MathNet.Spatial.Units;
 using System.Threading;
 using MathNet.Numerics.LinearAlgebra.Double;
 using HelixToolkit.Wpf;
+using System.Diagnostics;
 
 namespace ConventionalIK {
-
-    public class Kinematics {
-
+    public class SoftRobot {
         public int NumSegments { get; set; } = 1;
         public double Diameter { get; set; } = 1;
 
+        public Vector<double> Lengths { get; set; } = Vector<double>.Build.Dense(3, 4d);
+        public Vector<double> Arc { get; set; } = Vector<double>.Build.Dense(3, 0d);
+        public Vector<double> Q { get; set; } = Vector<double>.Build.Dense(3*4, 0d);
+        public Matrix<double> EEPose { get; set; } = CreateMatrix.DenseIdentity<double>(4,4);
+
+        public Vector3D EEPosePosition => new Vector3D(EEPose[0,3], EEPose[2, 3], EEPose[3, 3]);
+        public Matrix<double> EEPoseRotation => EEPose.SubMatrix(0, 3, 0, 3);
+
+        public SoftRobot() { }
+
+        public void ComputeEEPose(Vector<double> lengths) {
+            Lengths = lengths;
+
+            var fkResults = Kinematics.ForwardKinematics(lengths, Diameter, NumSegments);
+
+            Arc = (Vector<double>)fkResults[0];
+            Q = (Vector<double>)fkResults[1];
+            EEPose = (Matrix<double>)fkResults[2];
+        }
+    }
+
+    public class Kinematics {
         public Kinematics() {
-        }
-
-        public Kinematics(int numSegments, double diameter) {
-            NumSegments = numSegments;
-            Diameter = diameter;
-        }
-
-        public void ComputeEEPose(double[] lengths) {
-            var l = Vector<double>.Build.DenseOfArray(lengths);
-
-            var fkResults = ForwardKinematics(l, Diameter, NumSegments);
-
-            //return fkResults[2];
         }
 
         // Forward Kinematics
@@ -75,26 +83,26 @@ namespace ConventionalIK {
             }
         }
 
-        public static Vector<double> GetLengths(Vector<double> arcParameters, int numOfSegments, double diameter) {
-            var s = arcParameters[0];
-            var kappa = arcParameters[1];
-            var phi = arcParameters[2];
+        //public static Vector<double> GetLengths(Vector<double> arcParameters, int numOfSegments, double diameter) {
+        //    var s = arcParameters[0];
+        //    var kappa = arcParameters[1];
+        //    var phi = arcParameters[2];
 
-            var d = diameter;
-            var n = numOfSegments;
+        //    var d = diameter;
+        //    var n = numOfSegments;
 
-            var l0 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Sin(phi));
-            var l1 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa + d * Math.Sin(phi + Math.PI / 3));
-            var l2 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Cos(phi + Math.PI / 6));
+        //    var l0 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Sin(phi));
+        //    var l1 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa + d * Math.Sin(phi + Math.PI / 3));
+        //    var l2 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Cos(phi + Math.PI / 6));
 
-            if (kappa == 0) {
-                l0 = s;
-                l1 = s;
-                l2 = s;
-            }
+        //    if (kappa == 0) {
+        //        l0 = s;
+        //        l1 = s;
+        //        l2 = s;
+        //    }
 
-            return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
-        }
+        //    return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
+        //}
 
         public static Matrix<double> MakeJacobianF2(Vector<double> lengths, double diameter, int numOfSegments) {
             double[] CalculateS(Vector<double> lengths, double d, int n) {
@@ -173,78 +181,78 @@ namespace ConventionalIK {
 
             double[] partial_phi = CalculatePhi(lengths);
 
-            return Matrix<double>.Build.DenseOfRowArrays(new double[][] { partial_s, partial_k, partial_phi });
+            return CreateMatrix.DenseOfRowArrays(new double[][] { partial_s, partial_k, partial_phi });
         }
 
-        public static Matrix<double> MakeJacobianMatrix_DH_F1(Vector<double> lengths, double diameter, int numOfSegments) {
-            double l0, l1, l2;
-            l0 = lengths[0];
-            l1 = lengths[1];
-            l2 = lengths[2];
+        //public static Matrix<double> MakeJacobianMatrix_DH_F1(Vector<double> lengths, double diameter, int numOfSegments) {
+        //    double l0, l1, l2;
+        //    l0 = lengths[0];
+        //    l1 = lengths[1];
+        //    l2 = lengths[2];
 
-            var d = diameter;
-            var n = numOfSegments;
+        //    var d = diameter;
+        //    var n = numOfSegments;
 
-            var A = l0 + l1 + l2;
-            var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
+        //    var A = l0 + l1 + l2;
+        //    var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
 
-            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
-            double kappa = 2 * Math.Sqrt(B) / d / A;
-            double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
-            double radius = 1 / kappa;
-            double theta = s * kappa;
-            var ks = kappa * s;
-            var Rad90 = Math.PI / 2;
-            var theta1 = Rad90 - theta / 2;
-            var theta2 = -theta / 2;
-            var di = Math.Sin(theta / 2) / kappa * 2;
+        //    double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
+        //    double kappa = 2 * Math.Sqrt(B) / d / A;
+        //    double phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
+        //    double radius = 1 / kappa;
+        //    double theta = s * kappa;
+        //    var ks = kappa * s;
+        //    var Rad90 = Math.PI / 2;
+        //    var theta1 = Rad90 - theta / 2;
+        //    var theta2 = -theta / 2;
+        //    var di = Math.Sin(theta / 2) / kappa * 2;
 
-            var DHTable = Matrix<double>.Build.DenseOfArray(new double[,] {
-                {phi, 0,0, Rad90},
-                {theta1, 0, di,0 },
-                {theta2,0,0,-Rad90 },
-            });
+        //    var DHTable = CreateMatrix.DenseOfArray(new double[,] {
+        //        {phi, 0,0, Rad90},
+        //        {theta1, 0, di,0 },
+        //        {theta2,0,0,-Rad90 },
+        //    });
 
-            var T_DH = MakeTransformMatrixDH(DHTable);
+        //    var T_DH = MakeTransformMatrixDH(DHTable);
 
-            var C_ks = Math.Cos(ks);
-            var S_ks = Math.Sin(ks);
-            var C_phi = Math.Cos(phi);
-            var S_phi = Math.Sin(phi);
+        //    var C_ks = Math.Cos(ks);
+        //    var S_ks = Math.Sin(ks);
+        //    var C_phi = Math.Cos(phi);
+        //    var S_phi = Math.Sin(phi);
 
-            var e11 = -S_phi * (C_ks - 1) / kappa;
-            var e12 = -C_phi * (ks * S_ks + C_ks - 1) / (kappa * kappa);
-            var e13 = -C_phi * S_ks;
+        //    var e11 = -S_phi * (C_ks - 1) / kappa;
+        //    var e12 = -C_phi * (ks * S_ks + C_ks - 1) / (kappa * kappa);
+        //    var e13 = -C_phi * S_ks;
 
-            var e21 = 0.0;
-            var e22 = (ks * C_ks - S_ks) / (kappa * kappa);
-            var e23 = C_ks;
+        //    var e21 = 0.0;
+        //    var e22 = (ks * C_ks - S_ks) / (kappa * kappa);
+        //    var e23 = C_ks;
 
-            var e31 = C_phi * (C_ks - 1) / kappa;
-            var e32 = S_phi * (ks * S_ks + C_ks - 1) / (kappa * kappa);
-            var e33 = S_phi * S_ks;
+        //    var e31 = C_phi * (C_ks - 1) / kappa;
+        //    var e32 = S_phi * (ks * S_ks + C_ks - 1) / (kappa * kappa);
+        //    var e33 = S_phi * S_ks;
 
-            var e41 = C_phi * S_ks;
-            var e42 = s * S_phi;
-            var e43 = kappa * S_phi;
+        //    var e41 = C_phi * S_ks;
+        //    var e42 = s * S_phi;
+        //    var e43 = kappa * S_phi;
 
-            var e51 = 1 - C_ks;
-            var e52 = 0.0;
-            var e53 = 0.0;
+        //    var e51 = 1 - C_ks;
+        //    var e52 = 0.0;
+        //    var e53 = 0.0;
 
-            var e61 = -S_phi * S_ks;
-            var e62 = s * C_phi;
-            var e63 = kappa * C_phi;
+        //    var e61 = -S_phi * S_ks;
+        //    var e62 = s * C_phi;
+        //    var e63 = kappa * C_phi;
 
-            return Matrix<double>.Build.DenseOfArray(new double[,] {
-                { e11, e12, e13 },
-                { e21, e22, e23 },
-                { e31, e32, e33 },
-                { e41, e42, e43 },
-                { e51, e52, e53 },
-                { e61, e62, e63 },
-            });
-        }
+        //    return CreateMatrix.DenseOfArray(new double[,] {
+        //        { e11, e12, e13 },
+        //        { e21, e22, e23 },
+        //        { e31, e32, e33 },
+        //        { e41, e42, e43 },
+        //        { e51, e52, e53 },
+        //        { e61, e62, e63 },
+        //    });
+        ////}
 
         //public static Matrix<double> MakeJacobian(Vector<double> lengths, double diameter, int numOfSegments) {
         //    var arc = MakeTransformMatrixF2(lengths, numOfSegments, diameter);
@@ -270,7 +278,7 @@ namespace ConventionalIK {
             var e42 = 2 * Math.Cos(s * kappa / 2) * s / kappa;
             var e43 = 0;
 
-            return Matrix<double>.Build.DenseOfArray(new double[,] {
+            return CreateMatrix.DenseOfArray(new double[,] {
                 { e11, e12, e13 },
                 { 0, 0, 0 },
                 { 0, 0, 0 },
@@ -310,7 +318,7 @@ namespace ConventionalIK {
             var Zprev = new Vector3D(0, 0, 1);
             var Oprev = new Vector3D(0, 0, 0);
 
-            Matrix<double> JDH = Matrix<double>.Build.Dense(6, table.RowCount);
+            Matrix<double> JDH = CreateMatrix.Dense<double>(6, table.RowCount);
 
             for(int i = 0; i<table.RowCount; i++) {
 
@@ -373,23 +381,32 @@ namespace ConventionalIK {
             var theta0 = phi;
             var theta1 = (Math.PI - s * kappa) / 2;
             var theta2 = -s * kappa / 2;
-            var a = 2 * Math.Cos(s * kappa / 2) / kappa;
+            var r = 2 * Math.Sin(s * kappa / 2) / kappa;
+            
+            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
 
-            var q = Matrix<double>.Build.DenseOfArray(new double[,] {
-                { theta0,0,0, Math.PI / 2 },
-                { theta1, a, 0, 0 },
-                { theta2,0,0,-Math.PI / 2 }
+
+            var q = CreateMatrix.DenseOfArray(new double[,] {
+                { 0, theta0,0,0, Math.PI / 2 },
+                { 0, theta1,0, r, 0 },
+                { 0, theta2,0,0,-Math.PI / 2 }
             });
 
+            var Vq = CreateVector.DenseOfArray(new double[] {
+                theta0,0,0, Math.PI / 2,
+                theta1, 0, r, 0,
+                theta2,0,0,-Math.PI / 2
+            });
 
             var TransformationEE = MakeTransformMatrixDH(q);
+            Debug.WriteLine($"TransformationEE: {TransformationEE}");
 
             var Ree = TransformationEE.SubMatrix(0, 3, 0, 3);
             var Tee = TransformationEE.SubMatrix(0, 3, 3, 1);
 
             return new object[] {
-                Vector<double>.Build.DenseOfArray(new double[] { s, kappa, phi}),
-                Vector<double>.Build.DenseOfArray(q.AsRowMajorArray()),
+                CreateVector.DenseOfArray(new double[] { s, kappa, phi}),
+                Vq,
                 TransformationEE
             };
         }
@@ -431,13 +448,13 @@ namespace ConventionalIK {
             var s_alpha = Math.Sin(alpha);
             var c_alpha = Math.Cos(alpha);
 
-            var Z = Matrix<double>.Build.DenseOfArray(new double[,] {
+            var Z = CreateMatrix.DenseOfArray(new double[,] {
                 {c_theta, -s_theta, 0, 0 },
                 { s_theta, c_theta, 0, 0 },
                 { 0, 0, 1, d },
                 {0, 0, 0, 1}
             });
-            var X = Matrix<double>.Build.DenseOfArray(new double[,] {
+            var X = CreateMatrix.DenseOfArray(new double[,] {
                 {1,0,0,r },
                 {0, c_alpha, -s_alpha, 0},
                 {0, s_alpha, c_alpha, 0},
@@ -448,12 +465,15 @@ namespace ConventionalIK {
         }
 
         public static Matrix<double> MakeTransformMatrixDH(Matrix<double> table) {
-            Matrix<double> T = Matrix<double>.Build.DenseIdentity(4, 4);
+            Matrix<double> T = CreateMatrix.DenseIdentity<double>(4, 4);
 
             for (int i = 0; i < table.RowCount; i++) {
-                var Ti = MakeTransformMatrixDH(table[i, 0], table[i, 1], table[i, 2], table[i, 3]);
+                var Ti = MakeTransformMatrixDH(table[i, 1], table[i, 2], table[i, 3], table[i, 4]);
 
-                T *= Ti;
+                if (i == 0)
+                    T = Ti;
+                else
+                    T = T * Ti;
             }
 
             return T;

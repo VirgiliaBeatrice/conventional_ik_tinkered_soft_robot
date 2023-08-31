@@ -37,6 +37,23 @@ namespace ConventionalIK {
     public partial class MainViewModel : ObservableObject {
         [ObservableProperty]
         private Point3D currentPose;
+        [ObservableProperty]
+        private double l1 = 4;
+        [ObservableProperty]
+        private double l2 = 4;
+        [ObservableProperty]
+        private double l3 = 4;
+
+        partial void OnL1Changed(double value) {
+            MakeAllJoints();
+        }
+
+        partial void OnL2Changed(double value) {
+            MakeAllJoints();
+        }
+        partial void OnL3Changed(double value) {
+            MakeAllJoints();
+        }
 
         [RelayCommand]
         private void MakeJoints() {
@@ -49,13 +66,24 @@ namespace ConventionalIK {
             
         }
 
+        
+
         public List<Visual3D> JointObjects { get; set; } = new List<Visual3D>();
+
+        public SoftRobot Robot { get; set; } = new SoftRobot();
 
         [RelayCommand]
         private void MakeAllJoints() {
             JointObjects.ForEach(e => Objects.Remove(e));
+            //Objects.Clear();
 
-            var arc = Kinematics.MakeTransformMatrixF2(Vector<double>.Build.DenseOfArray(new double[] { 4, 4, 2 }), 1, 2);
+            var lengths = Vector<double>.Build.DenseOfArray(new double[] { L1,L2,L3 });
+
+            Robot.ComputeEEPose(lengths);
+
+            var arc = Robot.Arc;
+
+            //var arc = Kinematics.MakeTransformMatrixF2(, 1, 2);
 
             //var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
             var s = arc[0];
@@ -64,12 +92,12 @@ namespace ConventionalIK {
             var phi = arc[2];
             var theta = s / radius;
 
-            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}");
 
             var theta1 = Math.PI / 2 - theta / 2;
             var theta2 = -theta / 2;
-            var d = Math.Sin(theta / 2) / kappa * 2;
+            var r = Math.Sin(theta / 2) / kappa * 2;
 
+            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
             Debug.WriteLine($"Theta: {theta}");
 
             var j0 = new JointModel3D("Joint0");
@@ -79,13 +107,16 @@ namespace ConventionalIK {
             var j4 = new JointModel3D("Joint4");
                 
             var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
-            var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, d, 0);
+            var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, r, 0);
             var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
             var A34 = Kinematics.MakeTransformMatrixDH(0, 0, 0, 0);
 
             var A04 = A01 * A12 * A23 * A34;
             var A03 = A01 * A12 * A23;
             var A02 = A01 * A12;
+
+            Debug.WriteLine($"T: {A03}");
+
 
             var TA04 = Helper.ConvertToMatrixTransform3D(A04);
             var TA03 = Helper.ConvertToMatrixTransform3D(A03);
@@ -100,9 +131,9 @@ namespace ConventionalIK {
 
             // add all joints into Objects
             Objects.Add(j0);
-            Objects.Add(j1);
-            Objects.Add(j2);
-            Objects.Add(j3);
+            //Objects.Add(j1);
+            //Objects.Add(j2);
+            //Objects.Add(j3);
             //Objects.Add(j4);
 
             JointObjects.Add(j0);
@@ -151,10 +182,9 @@ namespace ConventionalIK {
             Objects.Add(tube);
             JointObjects.Add(tube);
 
-            var sp = new SphereVisual3D {
-                Center = new Point3D(0, 0, 8),
-                Fill = Brushes.Red,
-                Radius = 0.1,
+            var sp = new JointModel3D("EE") {
+                
+                Transform = Helper.ConvertToMatrixTransform3D(Robot.EEPose),
             };
             Objects.Add(sp);
             JointObjects.Add(sp);
