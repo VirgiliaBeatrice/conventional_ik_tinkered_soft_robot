@@ -23,10 +23,6 @@
             <!-- Lighting -->
             <helix:SunLight/>
 
-            <ModelVisual3D Content="{Binding Group}" />
-            <!-- 3D Arc (Portion of Cylinder to Represent Arc) -->
-            <helix:TubeVisual3D Path="{Binding ArcPath}" Diameter="0.05" Fill="Blue" />
-
             <!-- Add origin (a small sphere can represent the origin) -->
             <helix:SphereVisual3D Center="0,0,0" Radius="0.05" Fill="White"/>
 

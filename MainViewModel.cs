@@ -15,11 +15,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelixToolkit.Wpf;
 using MathNet.Numerics.LinearAlgebra;
+using MNVector3D = MathNet.Spatial.Euclidean.Vector3D;
 using OpenTK.Mathematics;
 
 namespace ConventionalIK {
-    public class Helper {
-        public static MatrixTransform3D ConvertToMatrixTransform3D(Matrix<double> matrix) {
+    public static class Helper {
+
+        public static MatrixTransform3D ToMatrixTransform3D(this Matrix<double> matrix) {
             if (matrix.RowCount != 4 || matrix.ColumnCount != 4)
                 throw new ArgumentException("Matrix must be 4x4 to convert to MatrixTransform3D");
 
@@ -30,9 +32,28 @@ namespace ConventionalIK {
                 t[1, 0], t[1, 1], t[1, 2], t[1, 3],
                 t[2, 0], t[2, 1], t[2, 2], t[2, 3],
                 t[3, 0], t[3, 1], t[3, 2], t[3, 3]
-                                                                                       ));
+            ));
         }
 
+        public static Matrix<double> ToMathNetMatrix(this Matrix3D mat) {
+            return CreateMatrix.DenseOfArray(new double[,] {
+                { mat.M11, mat.M12, mat.M13, mat.M14, },
+                { mat.M21, mat.M22, mat.M23, mat.M24, },
+                { mat.M31, mat.M32, mat.M33, mat.M34, },
+                { mat.OffsetX, mat.OffsetY, mat.OffsetZ, mat.M44, } }).Transpose();
+        }
+
+        public static Vector<double> ToVector4(this MNVector3D vector) {
+            return CreateVector.Dense(new double[] { vector.X, vector.Y, vector.Z, 1 });
+        }
+
+        public static Vector<double> CrossProduct(this Vector<double> it, Vector<double> other) {
+            double x = it[1] * other[2] - it[2] * other[1];
+            double y = it[2] * other[0] - it[0] * other[2];
+            double z = it[0] * other[1] - it[1] * other[0];
+
+            return CreateVector.Dense(new double[] { x, y, z, 1 });
+        }
     }
 
     public partial class MainViewModel : ObservableObject {
@@ -70,12 +91,17 @@ namespace ConventionalIK {
         [RelayCommand]
         private void Invalidate() {
             Robot.Joints.ForEach(e => Objects.Remove(e));
+            
+            Objects.Remove(Robot.Manipulator);
             Objects.Remove(Robot.RobotObject);
 
             // Draw robot
             Objects.Add(Robot.RobotObject);
+            Objects.Add(Robot.Manipulator);
 
             Robot.Joints.ForEach(Objects.Add);
+
+            Robot.Compute();
             //var T = Kinematics.MakeDHTransformMatrix()
 
         }
