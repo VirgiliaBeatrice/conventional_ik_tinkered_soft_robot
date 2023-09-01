@@ -44,6 +44,11 @@ namespace ConventionalIK {
         [ObservableProperty]
         private double l3 = 4;
 
+        [ObservableProperty]
+        private double min = 0.5;
+        [ObservableProperty]
+        private double max = 4;
+
         partial void OnL1Changed(double value) {
             MakeAllJoints();
         }
@@ -97,8 +102,8 @@ namespace ConventionalIK {
             var theta2 = -theta / 2;
             var r = Math.Sin(theta / 2) / kappa * 2;
 
-            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
-            Debug.WriteLine($"Theta: {theta}");
+            //Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
+            //Debug.WriteLine($"Theta: {theta}");
 
             var j0 = new JointModel3D("Joint0");
             var j1 = new JointModel3D("Joint1");
@@ -115,7 +120,7 @@ namespace ConventionalIK {
             var A03 = A01 * A12 * A23;
             var A02 = A01 * A12;
 
-            Debug.WriteLine($"T: {A03}");
+            //Debug.WriteLine($"T: {A03}");
 
 
             var TA04 = Helper.ConvertToMatrixTransform3D(A04);

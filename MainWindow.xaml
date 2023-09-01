@@ -59,9 +59,13 @@
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPose}" HorizontalAlignment="Center"/>
         </Grid>
         <StackPanel>
-            <Slider Width="200" Foreground="Black" Margin="10" Value="{Binding L1}"/>
-            <Slider Width="200" Foreground="Black" Margin="10" Value="{Binding L2}"/>
-            <Slider Width="200" Foreground="Black" Margin="10" Value="{Binding L3}"/>
+            <Slider Width="200" Maximum="{Binding Max}" Minimum="{Binding Min}" Foreground="Black" Margin="10" Value="{Binding L1}"/>
+            <Slider Width="200" Maximum="{Binding Max}" 
+                    Minimum="{Binding Min}"
+                    Foreground="Black" Margin="10" Value="{Binding L2}"/>
+            <Slider Width="200" Maximum="{Binding Max}"
+                    Minimum="{Binding Min}"
+                    Foreground="Black" Margin="10" Value="{Binding L3}"/>
         </StackPanel>
     </Grid>
 </Window>

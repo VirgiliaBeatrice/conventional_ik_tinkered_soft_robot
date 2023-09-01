@@ -17,6 +17,9 @@ namespace ConventionalIK {
         public int NumSegments { get; set; } = 1;
         public double Diameter { get; set; } = 1;
 
+        public double Max { get; set; } = 4;
+        public double Min { get; set; } = 0.5;
+
         public Vector<double> Lengths { get; set; } = Vector<double>.Build.Dense(3, 4d);
         public Vector<double> Arc { get; set; } = Vector<double>.Build.Dense(3, 0d);
         public Vector<double> Q { get; set; } = Vector<double>.Build.Dense(3*4, 0d);
@@ -29,8 +32,11 @@ namespace ConventionalIK {
 
         public void ComputeEEPose(Vector<double> lengths) {
             Lengths = lengths;
+            Debug.WriteLine($"Len: {lengths}");
 
             var fkResults = Kinematics.ForwardKinematics(lengths, Diameter, NumSegments);
+
+            Debug.WriteLine(Arc);
 
             Arc = (Vector<double>)fkResults[0];
             Q = (Vector<double>)fkResults[1];
@@ -357,7 +363,15 @@ namespace ConventionalIK {
             var A = l0 + l1 + l2;
             var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
 
-            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(Math.Sqrt(B) / (3 * n * d));
+            var f1 = Math.Sqrt(B) / (3 * n * d);
+            // clamp f1 in [-1,1]
+            if (f1 > 1)
+                f1 = 1;
+            else if (f1 < -1)
+                f1 = -1;
+
+
+            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(f1);
             double kappa = 2 * Math.Sqrt(B) / d / A;
             double phi = double.NaN;
 
@@ -383,7 +397,7 @@ namespace ConventionalIK {
             var theta2 = -s * kappa / 2;
             var r = 2 * Math.Sin(s * kappa / 2) / kappa;
             
-            Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
+            //Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
 
 
             var q = CreateMatrix.DenseOfArray(new double[,] {
@@ -399,7 +413,7 @@ namespace ConventionalIK {
             });
 
             var TransformationEE = MakeTransformMatrixDH(q);
-            Debug.WriteLine($"TransformationEE: {TransformationEE}");
+            //Debug.WriteLine($"TransformationEE: {TransformationEE}");
 
             var Ree = TransformationEE.SubMatrix(0, 3, 0, 3);
             var Tee = TransformationEE.SubMatrix(0, 3, 3, 1);
