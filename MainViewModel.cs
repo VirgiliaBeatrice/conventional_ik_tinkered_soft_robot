@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Xml;
@@ -50,25 +51,33 @@ namespace ConventionalIK {
         private double max = 4;
 
         partial void OnL1Changed(double value) {
-            MakeAllJoints();
+            Robot.L0 = value;
+
+            Robot.Invalidate();
         }
 
         partial void OnL2Changed(double value) {
-            MakeAllJoints();
+            Robot.L1 = value;
+
+            Robot.Invalidate();
         }
         partial void OnL3Changed(double value) {
-            MakeAllJoints();
+            Robot.L2 = value;
+
+            Robot.Invalidate();
         }
 
         [RelayCommand]
-        private void MakeJoints() {
-            Objects.Add(new JointModel3D());
+        private void Invalidate() {
+            Robot.Joints.ForEach(e => Objects.Remove(e));
+            Objects.Remove(Robot.RobotObject);
 
-            var table = Matrix<double>.Build.DenseOfArray(new double[,] {
+            // Draw robot
+            Objects.Add(Robot.RobotObject);
 
-            });
+            Robot.Joints.ForEach(Objects.Add);
             //var T = Kinematics.MakeDHTransformMatrix()
-            
+
         }
 
         
@@ -78,121 +87,144 @@ namespace ConventionalIK {
         public SoftRobot Robot { get; set; } = new SoftRobot();
 
         [RelayCommand]
+        private void MakeSmallDisplacement() {
+
+        }
+
+        [RelayCommand]
         private void MakeAllJoints() {
-            JointObjects.ForEach(e => Objects.Remove(e));
-            //Objects.Clear();
+            Robot.Joints.ForEach(e => Objects.Remove(e));
+            Objects.Remove(Robot.RobotObject);
 
-            var lengths = Vector<double>.Build.DenseOfArray(new double[] { L1,L2,L3 });
+            // Draw robot
+            Objects.Add(Robot.RobotObject);
 
-            Robot.ComputeEEPose(lengths);
+            Robot.Joints.ForEach(Objects.Add);
 
-            var arc = Robot.Arc;
+            ////Objects.Clear();
 
-            //var arc = Kinematics.MakeTransformMatrixF2(, 1, 2);
+            //var lengths = Vector<double>.Build.DenseOfArray(new double[] { L1,L2,L3 });
 
-            //var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
-            var s = arc[0];
-            var kappa = arc[1];
-            var radius = 1 / kappa;
-            var phi = arc[2];
-            var theta = s / radius;
+            //Robot.ComputeEEPose(lengths);
+
+            //var arc = Robot.Arc;
+
+            ////var arc = Kinematics.MakeTransformMatrixF2(, 1, 2);
+
+            ////var theta0 = OpenTK.Mathematics.MathHelper.DegreesToRadians(90);
+            //var s = arc[0];
+            //var kappa = arc[1];
+            //var radius = 1 / kappa;
+            //var phi = arc[2];
+            //var theta = s / radius;
 
 
-            var theta1 = Math.PI / 2 - theta / 2;
-            var theta2 = -theta / 2;
-            var r = Math.Sin(theta / 2) / kappa * 2;
+            //var theta1 = Math.PI / 2 - theta / 2;
+            //var theta2 = -theta / 2;
+            //var r = Math.Sin(theta / 2) / kappa * 2;
 
-            //Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
-            //Debug.WriteLine($"Theta: {theta}");
+            ////Debug.WriteLine($"S: {s}, Kappa: {kappa}, phi: {phi}, r: {r}");
+            ////Debug.WriteLine($"Theta: {theta}");
 
-            var j0 = new JointModel3D("Joint0");
-            var j1 = new JointModel3D("Joint1");
-            var j2 = new JointModel3D("Joint2");
-            var j3 = new JointModel3D("Joint3");
-            var j4 = new JointModel3D("Joint4");
+            //var j0 = new JointModel3D("Joint0");
+            //var j1 = new JointModel3D("Joint1");
+            //var j2 = new JointModel3D("Joint2");
+            //var j3 = new JointModel3D("Joint3");
+            //var j4 = new JointModel3D("Joint4");
                 
-            var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
-            var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, r, 0);
-            var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
-            var A34 = Kinematics.MakeTransformMatrixDH(0, 0, 0, 0);
+            //var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
+            //var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, r, 0);
+            //var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
+            //var A34 = Kinematics.MakeTransformMatrixDH(0, 0, 0, 0);
 
-            var A04 = A01 * A12 * A23 * A34;
-            var A03 = A01 * A12 * A23;
-            var A02 = A01 * A12;
+            //var A04 = A01 * A12 * A23 * A34;
+            //var A03 = A01 * A12 * A23;
+            //var A02 = A01 * A12;
 
-            //Debug.WriteLine($"T: {A03}");
+            ////Debug.WriteLine($"T: {A03}");
 
 
-            var TA04 = Helper.ConvertToMatrixTransform3D(A04);
-            var TA03 = Helper.ConvertToMatrixTransform3D(A03);
-            var TA02 = Helper.ConvertToMatrixTransform3D(A02);
-            var TA01 = Helper.ConvertToMatrixTransform3D(A01);
+            //var TA04 = Helper.ConvertToMatrixTransform3D(A04);
+            //var TA03 = Helper.ConvertToMatrixTransform3D(A03);
+            //var TA02 = Helper.ConvertToMatrixTransform3D(A02);
+            //var TA01 = Helper.ConvertToMatrixTransform3D(A01);
 
-            // Draw a reference arc
-            j1.Transform = TA01;
-            j2.Transform = TA02;
-            j3.Transform = TA03;
-            //j4.Transform = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0,0), -90));
+            //// Draw a reference arc
+            //j1.Transform = TA01;
+            //j2.Transform = TA02;
+            //j3.Transform = TA03;
+            ////j4.Transform = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0,0), -90));
 
-            // add all joints into Objects
-            Objects.Add(j0);
-            //Objects.Add(j1);
-            //Objects.Add(j2);
+            //// add all joints into Objects
+            //Objects.Add(j0);
+            ////Objects.Add(j1);
+            ////Objects.Add(j2);
             //Objects.Add(j3);
-            //Objects.Add(j4);
+            ////Objects.Add(j4);
 
-            JointObjects.Add(j0);
-            JointObjects.Add(j1);
-            JointObjects.Add(j2);
-            JointObjects.Add(j3);
+            //JointObjects.Add(j0);
+            //JointObjects.Add(j1);
+            //JointObjects.Add(j2);
+            //JointObjects.Add(j3);
 
-            var arcPoints = new List<Vector3d>();
-            Point3DCollection path;
-            if (kappa == 0)
-                path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, s) });
-            else {
-                int numSegments = 10;  // The number of segments to use to draw the arc. Adjust as needed.
-                double angleIncrement = s / radius / numSegments;
+            //var arcPoints = new List<Vector3d>();
+            //Point3DCollection path;
+            //if (kappa == 0)
+            //    path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, s) });
+            //else {
+            //    int numSegments = 10;  // The number of segments to use to draw the arc. Adjust as needed.
+            //    double angleIncrement = s / radius / numSegments;
 
-                // Compute the normal to the arc's plane which is the cross product of the startVector and the y-axis
-                //var normal = new Vector3d(0, -1, 0);
-                //phi = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
-                var rotationMatrix = Quaterniond.FromAxisAngle(new Vector3d(0, 0, 1), phi);
+            //    // Compute the normal to the arc's plane which is the cross product of the startVector and the y-axis
+            //    //var normal = new Vector3d(0, -1, 0);
+            //    //phi = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
+            //    var rotationMatrix = Quaterniond.FromAxisAngle(new Vector3d(0, 0, 1), phi);
 
 
-                for (int i = 0; i <= numSegments; i++) {
-                    double alpha = i * angleIncrement;
+            //    for (int i = 0; i <= numSegments; i++) {
+            //        double alpha = i * angleIncrement;
 
-                    Vector3d point = new Vector3d(radius * (1 - Math.Cos(alpha)), 0, radius * Math.Sin(alpha));
+            //        Vector3d point = new Vector3d(radius * (1 - Math.Cos(alpha)), 0, radius * Math.Sin(alpha));
 
-                    point = Vector3d.Transform(point, rotationMatrix);
+            //        point = Vector3d.Transform(point, rotationMatrix);
 
-                    arcPoints.Add(point);
-                }
+            //        arcPoints.Add(point);
+            //    }
 
-                path = new Point3DCollection(arcPoints.Select(e1 => new Point3D(e1.X, e1.Y, e1.Z)));
-            }
+            //    path = new Point3DCollection(arcPoints.Select(e1 => new Point3D(e1.X, e1.Y, e1.Z)));
+            //}
 
-            var tube = new TubeVisual3D {
-                Path = path,
-                Material = new DiffuseMaterial {
-                    Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
-                },
-                BackMaterial = new DiffuseMaterial {
-                    Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
-                },
-                Diameter = 0.5,
-            };
+            //var tube = new TubeVisual3D {
+            //    Path = path,
+            //    Material = new DiffuseMaterial {
+            //        Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+            //    },
+            //    BackMaterial = new DiffuseMaterial {
+            //        Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+            //    },
+            //    Diameter = 0.5,
+            //};
 
-            Objects.Add(tube);
-            JointObjects.Add(tube);
+            //Objects.Add(tube);
+            //JointObjects.Add(tube);
 
-            var sp = new JointModel3D("EE") {
-                
-                Transform = Helper.ConvertToMatrixTransform3D(Robot.EEPose),
-            };
-            Objects.Add(sp);
-            JointObjects.Add(sp);
+            //var eeController = new JointModel3D("EE") {
+
+            //    Transform = Helper.ConvertToMatrixTransform3D(Robot.EEPose),
+            //};
+            //Objects.Add(eeController);
+            //JointObjects.Add(eeController);
+
+            //var manipulator = new CombinedManipulator() {
+            //};
+
+            //BindingOperations.SetBinding(
+            //    manipulator,
+            //    CombinedManipulator.TargetTransformProperty,
+            //    new Binding("Transform") { Source = eeController });
+
+            //Objects.Add(manipulator);
+            //JointObjects.Add(manipulator);
         }
 
         
@@ -242,6 +274,7 @@ namespace ConventionalIK {
         private BoundingBoxVisual3D boundingBox;
         private CoordinateSystemVisual3D coordinateSystem;
         private BillboardTextVisual3D jointLabel;
+        private CombinedManipulator combinedManipulator;
 
         public double Opacity { get; set; } = 1.0d;
 
@@ -279,12 +312,19 @@ namespace ConventionalIK {
                 Width=4,
                 FontSize = 20,
             };
+            //combinedManipulator = new CombinedManipulator();
+
+            //BindingOperations.SetBinding(
+            //   combinedManipulator,
+            //   CombinedManipulator.TargetTransformProperty,
+            //   new Binding("Transform") { Source = this });
 
             // Add all the visual components to the main visual
             this.Children.Add(jointTube);
             this.Children.Add(boundingBox);
             this.Children.Add(coordinateSystem);
             this.Children.Add(jointLabel);
+            //Children.Add(combinedManipulator);
         }
     }
 

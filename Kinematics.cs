@@ -11,32 +11,198 @@ using System.Threading;
 using MathNet.Numerics.LinearAlgebra.Double;
 using HelixToolkit.Wpf;
 using System.Diagnostics;
+using OpenTK.Mathematics;
+using System.Linq;
+using System.Windows.Media.Media3D;
+using System.Windows.Media;
+using MNVector3D = MathNet.Spatial.Euclidean.Vector3D;
+using Point3D = System.Windows.Media.Media3D.Point3D;
 
 namespace ConventionalIK {
     public class SoftRobot {
-        public int NumSegments { get; set; } = 1;
-        public double Diameter { get; set; } = 1;
+        public double L0 { get; set; }
+        public double L1 { get; set; }
+        public double L2 { get; set; }
 
-        public double Max { get; set; } = 4;
+        public int NumSegments { get; set; } = 1;
+        public double Diameter { get; set; } = 4;
+
+        public double StaticLength { get; set; } = 4;
+        public double Max => StaticLength;
         public double Min { get; set; } = 0.5;
 
-        public Vector<double> Lengths { get; set; } = Vector<double>.Build.Dense(3, 4d);
-        public Vector<double> Arc { get; set; } = Vector<double>.Build.Dense(3, 0d);
-        public Vector<double> Q { get; set; } = Vector<double>.Build.Dense(3*4, 0d);
+        public Vector<double> Lengths { get; set; } = CreateVector.Dense(3, 4d);
+        public Vector<double> Arc { get; set; } = CreateVector.Dense(3, 0d);
+        public Vector<double> Q { get; set; } = CreateVector.Dense(3*4, 0d);
         public Matrix<double> EEPose { get; set; } = CreateMatrix.DenseIdentity<double>(4,4);
 
-        public Vector3D EEPosePosition => new Vector3D(EEPose[0,3], EEPose[2, 3], EEPose[3, 3]);
-        public Matrix<double> EEPoseRotation => EEPose.SubMatrix(0, 3, 0, 3);
 
-        public SoftRobot() { }
+        public List<JointModel3D> Joints { get; set; } = new List<JointModel3D>();
+        public TubeVisual3D RobotObject { get; set; } = null;
+
+        public SoftRobot() => Initialize();
+
+        public void Initialize() {
+            Joints.Clear();
+
+            L0 = StaticLength;
+            L1 = StaticLength;
+            L2 = StaticLength;
+
+            var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
+
+            ComputeEEPose(lens);
+            ComputeAllJoints();
+            ComputeRobotObject();
+        }
+
+        public void Invalidate() {
+            var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
+
+            ComputeEEPose(lens);
+            InvalidateAllJoints();
+            ComputeRobotObject();
+        }
+
+        public void InvalidateAllJoints() {
+            var s = Arc[0];
+            var kappa = Arc[1];
+            var phi = Arc[2];
+            var theta = s * kappa;
+
+            var j1 = Joints[1];
+            var j2 = Joints[2];
+            var j3 = Joints[3];
+
+            if (kappa == 0) {
+                var T03 = new TranslateTransform3D(0, 0, s);
+
+                j3.Transform = T03;
+            }
+            else {
+                var theta1 = Math.PI / 2 - theta / 2;
+                var theta2 = -theta / 2;
+                var r = Math.Sin(theta / 2) / kappa * 2;
+
+                var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
+                var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, r, 0);
+                var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
+
+                var A03 = A01 * A12 * A23;
+                var A02 = A01 * A12;
+
+                var TA03 = Helper.ConvertToMatrixTransform3D(A03);
+                var TA02 = Helper.ConvertToMatrixTransform3D(A02);
+                var TA01 = Helper.ConvertToMatrixTransform3D(A01);
+
+                j1.Transform = TA01;
+                j2.Transform = TA02;
+                j3.Transform = TA03;
+            }
+        }
+
+        public void ComputeAllJoints() {
+            var j0 = new JointModel3D("Joint0");
+            var j1 = new JointModel3D("Joint1");
+            var j2 = new JointModel3D("Joint2");
+            var j3 = new JointModel3D("Joint3");
+
+            var s = Arc[0];
+            var kappa = Arc[1];
+            var phi = Arc[2];
+            var theta = s * kappa;
+
+            if (kappa == 0) {
+                var T03 = new TranslateTransform3D(0, 0, s);
+
+                j3.Transform = T03;
+            }
+            else {
+                var theta1 = Math.PI / 2 - theta / 2;
+                var theta2 = -theta / 2;
+                var r = Math.Sin(theta / 2) / kappa * 2;
+
+                var A01 = Kinematics.MakeTransformMatrixDH(phi, 0, 0, Math.PI / 2);
+                var A12 = Kinematics.MakeTransformMatrixDH(theta1, 0, r, 0);
+                var A23 = Kinematics.MakeTransformMatrixDH(theta2, 0, 0, -Math.PI / 2);
+
+                var A03 = A01 * A12 * A23;
+                var A02 = A01 * A12;
+
+                var TA03 = Helper.ConvertToMatrixTransform3D(A03);
+                var TA02 = Helper.ConvertToMatrixTransform3D(A02);
+                var TA01 = Helper.ConvertToMatrixTransform3D(A01);
+
+                j1.Transform = TA01;
+                j2.Transform = TA02;
+                j3.Transform = TA03;
+
+            }
+
+            Joints.Add(j0);
+            Joints.Add(j1);
+            Joints.Add(j2);
+            Joints.Add(j3);
+        }
+
+
+        private DiffuseMaterial tRed = new DiffuseMaterial {
+            Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+        };
+        private DiffuseMaterial tBlue = new DiffuseMaterial {
+            Brush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)),
+        };
+        public void ComputeRobotObject() {
+            var arcPoints = new List<Vector3d>();
+            Point3DCollection path;
+
+            var s = Arc[0];
+            var kappa = Arc[1];
+            var phi = Arc[2];
+            var radius = 1 / kappa;
+
+            if (kappa == 0)
+                path = new Point3DCollection(new Point3D[] { new Point3D(0, 0, 0), new Point3D(0, 0, s) });
+            else {
+                int numSegments = 10;  // The number of segments to use to draw the arc. Adjust as needed.
+                double angleIncrement = s / radius / numSegments;
+
+                // Compute the normal to the arc's plane which is the cross product of the startVector and the y-axis
+                //var normal = new Vector3d(0, -1, 0);
+                //phi = OpenTK.Mathematics.MathHelper.DegreesToRadians(30);
+                var rotationMatrix = Quaterniond.FromAxisAngle(new Vector3d(0, 0, 1), phi);
+
+
+                for (int i = 0; i <= numSegments; i++) {
+                    double alpha = i * angleIncrement;
+
+                    Vector3d point = new Vector3d(radius * (1 - Math.Cos(alpha)), 0, radius * Math.Sin(alpha));
+
+                    point = Vector3d.Transform(point, rotationMatrix);
+
+                    arcPoints.Add(point);
+                }
+
+                path = new Point3DCollection(arcPoints.Select(e1 => new Point3D(e1.X, e1.Y, e1.Z)));
+            }
+
+            var tube = new TubeVisual3D {
+                Path = path,
+                Material = tRed,
+                BackMaterial = tRed,
+                Diameter = Diameter,
+            };
+
+            RobotObject = tube;
+        }
 
         public void ComputeEEPose(Vector<double> lengths) {
             Lengths = lengths;
-            Debug.WriteLine($"Len: {lengths}");
+            //Debug.WriteLine($"Len: {lengths}");
 
             var fkResults = Kinematics.ForwardKinematics(lengths, Diameter, NumSegments);
 
-            Debug.WriteLine(Arc);
+            //Debug.WriteLine(Arc);
 
             Arc = (Vector<double>)fkResults[0];
             Q = (Vector<double>)fkResults[1];
@@ -304,9 +470,9 @@ namespace ConventionalIK {
 
         public static Matrix<double> MakeJacobianDH(Matrix<double> table) {
             var Tee = MakeTransformMatrixDH(table.SubMatrix(0, table.RowCount, 1, table.ColumnCount - 1));
-            var Oee = Vector3D.OfVector(Tee.Column(3).SubVector(0, 3));
+            var Oee = MNVector3D.OfVector(Tee.Column(3).SubVector(0, 3));
 
-            Vector<double> MakeJacobianDHForRevoluteJoint(Vector3D Zprev, Vector3D Oprev) {
+            Vector<double> MakeJacobianDHForRevoluteJoint(MNVector3D Zprev, MNVector3D Oprev) {
                 var JiV = Zprev.CrossProduct(Oee - Oprev);
                 var JiW = Zprev;
 
@@ -314,15 +480,15 @@ namespace ConventionalIK {
                 return Vector<double>.Build.DenseOfArray(new double[] { JiV.X, JiV.Y, JiV.Z, JiW.X, JiW.Y, JiW.Z });
             }
 
-            Vector<double> MakeDHForPrismaticJoint(Vector3D Zprev) {
+            Vector<double> MakeDHForPrismaticJoint(MNVector3D Zprev) {
                 var JiV = Zprev;
-                var JiW = new Vector3D();
+                var JiW = new MNVector3D();
 
                 return Vector<double>.Build.DenseOfArray(new double[] { JiV.X, JiV.Y, JiV.Z, JiW.X, JiW.Y, JiW.Z });
             }
 
-            var Zprev = new Vector3D(0, 0, 1);
-            var Oprev = new Vector3D(0, 0, 0);
+            var Zprev = new MNVector3D(0, 0, 1);
+            var Oprev = new MNVector3D(0, 0, 0);
 
             Matrix<double> JDH = CreateMatrix.Dense<double>(6, table.RowCount);
 
@@ -342,8 +508,8 @@ namespace ConventionalIK {
                 else
                     Ji = MakeDHForPrismaticJoint(Zprev);
 
-                Zprev = Vector3D.OfVector(Ti * Zprev.ToVector());
-                Oprev = Vector3D.OfVector(Ti.Column(3).SubVector(0, 3));
+                Zprev = MNVector3D.OfVector(Ti * Zprev.ToVector());
+                Oprev = MNVector3D.OfVector(Ti.Column(3).SubVector(0, 3));
 
                 JDH.SetColumn(i, Ji);
             }
@@ -371,9 +537,9 @@ namespace ConventionalIK {
                 f1 = -1;
 
 
-            double s = n * d * A / (Math.Sqrt(B)) * Math.Asin(f1);
             double kappa = 2 * Math.Sqrt(B) / d / A;
-            double phi = double.NaN;
+            double s = kappa == 0? l0 : n * d * A / (Math.Sqrt(B)) * Math.Asin(f1);
+            double phi = 0d;
 
             if (l1 > l2) {
                 phi = Math.Atan(Math.Sqrt(3) / 3 * (l2 + l1 - 2 * l0) / (l1 - l2));
@@ -390,7 +556,7 @@ namespace ConventionalIK {
                 }
             }
             else
-                phi = double.NaN;
+                phi = 0d;
 
             var theta0 = phi;
             var theta1 = (Math.PI - s * kappa) / 2;
@@ -423,6 +589,45 @@ namespace ConventionalIK {
                 Vq,
                 TransformationEE
             };
+        }
+
+        public static void InverseKinematics(Matrix<double> goalEE, Matrix<double> currEE, Vector<double> currL, double diameter, int numSegments) {
+            var fkResults = ForwardKinematics(currL, diameter, numSegments);
+
+            var arc = (Vector<double>)fkResults[0];
+            var q = (Vector<double>)fkResults[1];
+            //var currEE = (Matrix<double>)fkResults[2];
+
+            // step1
+            int maxIter = 100;
+            int iter = 0;
+
+            Matrix<double> deltaEE;
+
+            do {
+                deltaEE = goalEE - currEE;
+                var a = 0.1;
+
+                // step2
+                var vEE = a * deltaEE;
+
+                // step3
+                var JF2 = MakeJacobianF2(currL, diameter, numSegments);
+                var JF1 = MakeJacobianF1(arc[0], arc[1], arc[2]);
+                var JDH = MakeJacobianDH(q.ToRowMatrix().Resize(3, 4));
+
+                var J = JDH * JF1 * JF2;
+
+                // step4
+                var Jdaggar = J.PseudoInverse();
+
+                // step5
+                var vL = Jdaggar * vEE;
+
+                currL = CreateVector.Dense(vL.ToColumnMajorArray());
+                iter++;
+
+            } while (iter <= maxIter | deltaEE.FrobeniusNorm() < 0.0001);
         }
 
         public IEnumerable<Vector<double>> IK_JacobianTranspose(Matrix<double> desiredE, Vector<double> currL, double diameter, int numOfSegments) {
