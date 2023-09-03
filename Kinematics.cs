@@ -49,7 +49,7 @@ namespace ConventionalIK {
 
             L0 = StaticLength;
             L1 = StaticLength;
-            L2 = StaticLength;
+            L2 = 2;
 
             var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
 
@@ -295,24 +295,26 @@ namespace ConventionalIK {
         //    return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
         //}
 
-        public static Matrix<double> MakeJacobianF2(Vector<double> lengths, double diameter, int numOfSegments) {
+        public static Matrix<double> MakeJacobianF2(Vector<double> lengths, double diameter, int numSegments) {
             double[] CalculateS(Vector<double> lengths, double d, int n) {
-                double l0, l1, l2;
-                l0 = lengths[0];
-                l1 = lengths[1];
-                l2 = lengths[2];
+                double l1, l2, l3;
+                l1 = lengths[0];
+                l2 = lengths[1];
+                l3 = lengths[2];
 
-                var A = l0 + l1 + l2;
-                var B = l0 * l0 + l1 * l1 + l2 * l2 - l0 * l1 - l0 * l2 - l1 * l2;
+                // if l0=l1=l2, then B=0
+
+                var A = l1 + l2 + l3;
+                var B = l1 * l1 + l2 * l2 + l3 * l3 - l1 * l2 - l1 * l3 - l2 * l3;
                 var u = n * d * A / Math.Sqrt(B);
                 var v = Math.Asin(Math.Sqrt(B) / (3 * n * d));
 
                 var partial_a_l0 = 1;
                 var partial_a_l1 = 1;
                 var partial_a_l2 = 1;
-                var partial_b_l0 = 2 * l0 - l1 - l2;
-                var partial_b_l1 = 2 * l1 - l0 - l2;
-                var partial_b_l2 = 2 * l2 - l0 - l1;
+                var partial_b_l0 = 2 * l1 - l2 - l3;
+                var partial_b_l1 = 2 * l2 - l1 - l3;
+                var partial_b_l2 = 2 * l3 - l1 - l2;
 
                 double partial_u_l0 = (n * d * Math.Sqrt(B) * partial_a_l0 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l0) / B;
                 double partial_u_l1 = (n * d * Math.Sqrt(B) * partial_a_l1 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l1) / B;
@@ -329,29 +331,37 @@ namespace ConventionalIK {
                 return new double[] { partial_s_l0, partial_s_l1, partial_s_l2 };
             }
 
-            double[] partial_s = CalculateS(lengths, diameter, numOfSegments);
+            double[] partial_s = CalculateS(lengths, diameter, numSegments);
 
-            // k
-            double[] CalculateK(Vector<double> lengths, double diameter) {
-                double l0, l1, l2;
-                l0 = lengths[0];
-                l1 = lengths[1];
-                l2 = lengths[2];
+            // k: Double checked
+            double[] CalculateK(Vector<double> lengths, double diameter, double numSegments) {
+                double l1, l2, l3;
+                l1 = lengths[0];
+                l2 = lengths[1];
+                l3 = lengths[2];
 
                 var d = diameter;
+                var n = numSegments;
 
-                var partial_b_l0 = 2 * l0 - l1 - l2;
-                var partial_b_l1 = 2 * l1 - l0 - l2;
-                var partial_b_l2 = 2 * l2 - l0 - l1;
+                var A = l1 * l1 + l2 * l2 + l3 * l3 - l1 * l2 - l1 * l3 - l2 * l3;
+                var B = l1 + l2 + l3;
+
+                var partial_a_l1 = 2 * l1 - l2 - l3;
+                var partial_a_l2 = 2 * l2 - l1 - l3;
+                var partial_a_l3 = 2 * l3 - l1 - l2;
+
+                // Singularity: A == 0
+                var partial_k_a = 1 / (n * B * Math.Sqrt(A));
+                var partial_k_b = -2 * Math.Sqrt(A) / (n * B * B);
 
                 return new double[] {
-                    1 / (Math.Sqrt(partial_b_l0) * d),
-                    1 / (Math.Sqrt(partial_b_l1) * d),
-                    1 / (Math.Sqrt(partial_b_l2) * d)
+                    partial_k_a * partial_a_l1 + partial_k_b,
+                    partial_k_a * partial_a_l2 + partial_k_b,
+                    partial_k_a * partial_a_l3 + partial_k_b,
                 };
             }
 
-            double[] partial_k = CalculateK(lengths, diameter);
+            double[] partial_k = CalculateK(lengths, diameter, numSegments);
 
             // phi
             double[] CalculatePhi(Vector<double> lengths) {
@@ -554,6 +564,10 @@ namespace ConventionalIK {
                 var JF2 = MakeJacobianF2(currL, diameter, numSegments);
                 var JF1 = MakeJacobianF1(arc[0], arc[1], arc[2]);
                 var JDH = MakeJacobianDH(Q);
+
+                Debug.WriteLine($"det(JF2): {JF2.Determinant()}");
+                Debug.WriteLine($"det(JF1): {JF1.Determinant()}");
+                Debug.WriteLine($"det(JDH): {JDH.Determinant()}");
 
                 var J = JDH * JF1 * JF2;
 
