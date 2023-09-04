@@ -21,12 +21,12 @@ using NMMatrix3D = MathNet.Spatial.Euclidean.Matrix3D;
 
 namespace ConventionalIK {
     public class SoftRobot {
-        public double L0 { get; set; }
         public double L1 { get; set; }
         public double L2 { get; set; }
+        public double L3 { get; set; }
 
         public int NumSegments { get; set; } = 1;
-        public double Diameter { get; set; } = 4;
+        public double Diameter { get; set; } = 1;
 
         public double StaticLength { get; set; } = 4;
         public double Max => StaticLength;
@@ -34,7 +34,7 @@ namespace ConventionalIK {
 
         public Vector<double> Lengths { get; set; } = CreateVector.Dense(3, 4d);
         public Vector<double> Arc { get; set; } = CreateVector.Dense(3, 0d);
-        public Vector<double> Q { get; set; } = CreateVector.Dense(3*4, 0d);
+        public Matrix<double> Q { get; set; } = CreateMatrix.Dense(3, 4, 0d);
         public Matrix<double> EEPose { get; set; } = CreateMatrix.DenseIdentity<double>(4,4);
 
 
@@ -47,11 +47,11 @@ namespace ConventionalIK {
         public void Initialize() {
             Joints.Clear();
 
-            L0 = StaticLength;
             L1 = StaticLength;
-            L2 = 2;
+            L2 = StaticLength;
+            L3 = 2;
 
-            var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
+            var lens = CreateVector.Dense(new double[] { L1, L2, L3 });
 
             ComputeEEPose(lens);
             ComputeAllJoints();
@@ -59,7 +59,7 @@ namespace ConventionalIK {
         }
 
         public void Invalidate() {
-            var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
+            var lens = CreateVector.Dense(new double[] { L1, L2, L3 });
 
             ComputeEEPose(lens);
             InvalidateAllJoints();
@@ -67,18 +67,60 @@ namespace ConventionalIK {
         }
 
         public void Compute() {
-            Matrix<double> goalEE = Manipulator.TargetTransform.Value.ToMathNetMatrix();
+            //Matrix<double> goalEE = Manipulator.TargetTransform.Value.ToMathNetMatrix();
 
-            var lens = CreateVector.Dense(new double[] { L0, L1, L2 });
+            var lens = CreateVector.Dense(new double[] { L1, L2, L3 });
 
             ComputeEEPose(lens);
+
+            // goalEE for test
+            var goalEE = (Matrix<double>)Kinematics.ForwardKinematics(CreateVector.Dense(new double[] { 4, 4, 1 }),Diameter, NumSegments)[2];
+
             var currL = Kinematics.InverseKinematics(goalEE, EEPose, lens, Diameter, NumSegments);
 
-            L0 = currL[0];
-            L1 = currL[1];
-            L2 = currL[2];
+            L1 = currL[0];
+            L2 = currL[1];
+            L3 = currL[2];
 
             Invalidate();
+        }
+
+        public void ComputeIK() {
+            // Update current pose from current lengths
+            var lens = CreateVector.Dense(new double[] { L1, L2, L3 });
+
+            ComputeEEPose(lens);
+
+            // goalEE for test
+            var goalEE = (Matrix<double>)Kinematics.ForwardKinematics(CreateVector.Dense(new double[] { 4, 4, 1 }),Diameter, NumSegments)[2];
+            var currEE = EEPose;
+            var currL = lens;
+
+            int maxIter = 100;
+            int iter = 0;
+            do {
+                var deltaMatEE = goalEE - currEE;
+                var deltaVEE = Helper.TransformationMatrixToPoseVector(deltaMatEE) * 0.1;
+
+                deltaVEE[3] = 0;
+                deltaVEE[4] = 0;
+                deltaVEE[5] = 0;
+
+                var J2 = Kinematics.MakeJacobianF2(currL, Diameter, NumSegments);
+                var J1 = Kinematics.MakeJacobianF1(Arc[0], Arc[1], Arc[2]);
+                var JDH = Kinematics.MakeJacobianDH(Q);
+
+                var J = JDH * J1 * J2;
+
+                var deltaL = Kinematics.IKStep(deltaVEE, J);
+
+                currL += deltaL;
+                ComputeEEPose(currL);
+
+                InvalidateAllJoints();
+                Invalidate();
+                iter++;
+            } while (iter <= maxIter);
         }
 
         public void InvalidateAllJoints() {
@@ -223,8 +265,15 @@ namespace ConventionalIK {
 
             //Debug.WriteLine(Arc);
 
+            var q = (Vector<double>)fkResults[1];
+
+            Q = CreateMatrix.DenseOfArray(new double[,] {
+                { q[0], q[1], q[2], q[3] },
+                { q[4], q[5], q[6], q[7] },
+                { q[8], q[9], q[10], q[11] },
+            });
+
             Arc = (Vector<double>)fkResults[0];
-            Q = (Vector<double>)fkResults[1];
             EEPose = (Matrix<double>)fkResults[2];
         }
     }
@@ -274,27 +323,6 @@ namespace ConventionalIK {
             }
         }
 
-        //public static Vector<double> GetLengths(Vector<double> arcParameters, int numOfSegments, double diameter) {
-        //    var s = arcParameters[0];
-        //    var kappa = arcParameters[1];
-        //    var phi = arcParameters[2];
-
-        //    var d = diameter;
-        //    var n = numOfSegments;
-
-        //    var l0 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Sin(phi));
-        //    var l1 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa + d * Math.Sin(phi + Math.PI / 3));
-        //    var l2 = 2 * n * Math.Sin(kappa * s / (2 * n)) * (1 / kappa - d * Math.Cos(phi + Math.PI / 6));
-
-        //    if (kappa == 0) {
-        //        l0 = s;
-        //        l1 = s;
-        //        l2 = s;
-        //    }
-
-        //    return Vector<double>.Build.DenseOfArray(new double[] { l0, l1, l2 });
-        //}
-
         public static Matrix<double> MakeJacobianF2(Vector<double> lengths, double diameter, int numSegments) {
             double[] CalculateS(Vector<double> lengths, double d, int n) {
                 double l1, l2, l3;
@@ -305,30 +333,18 @@ namespace ConventionalIK {
                 // if l0=l1=l2, then B=0
 
                 var A = l1 + l2 + l3;
-                var B = l1 * l1 + l2 * l2 + l3 * l3 - l1 * l2 - l1 * l3 - l2 * l3;
-                var u = n * d * A / Math.Sqrt(B);
-                var v = Math.Asin(Math.Sqrt(B) / (3 * n * d));
+                var B = Math.Sqrt(l1 * l1 + l2 * l2 + l3 * l3 - l1 * l2 - l1 * l3 - l2 * l3);
 
-                var partial_a_l0 = 1;
-                var partial_a_l1 = 1;
-                var partial_a_l2 = 1;
-                var partial_b_l0 = 2 * l1 - l2 - l3;
-                var partial_b_l1 = 2 * l2 - l1 - l3;
-                var partial_b_l2 = 2 * l3 - l1 - l2;
+                var C1 = 2 * l1 - l2 - l3;
+                var C2 = 2 * l2 - l1 - l3;
+                var C3 = 2 * l3 - l1 - l2;
 
-                double partial_u_l0 = (n * d * Math.Sqrt(B) * partial_a_l0 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l0) / B;
-                double partial_u_l1 = (n * d * Math.Sqrt(B) * partial_a_l1 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l1) / B;
-                double partial_u_l2 = (n * d * Math.Sqrt(B) * partial_a_l2 - (n * d * A) * (1 / 2 / Math.Sqrt(B)) * partial_b_l2) / B;
+                var theta = B / (3 * n * d);
 
-                double partial_v_l0 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l0;
-                double partial_v_l1 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l1;
-                double partial_v_l2 = (1 / Math.Sqrt(1 - Math.Pow(Math.Sqrt(B) / (3 * n * d), 2))) * (1 / (3 * n * d)) * (1 / (2 * Math.Sqrt(B))) * partial_b_l2;
-
-                double partial_s_l0 = partial_u_l0 * v + partial_v_l0 * u;
-                double partial_s_l1 = partial_u_l1 * v + partial_v_l1 * u;
-                double partial_s_l2 = partial_u_l2 * v + partial_v_l2 * u;
-
-                return new double[] { partial_s_l0, partial_s_l1, partial_s_l2 };
+                var partial_s_l1 = n * d * (2 * B * B + A * C1) / (2 * B * B * B) * Math.Asin(theta) + n * d * A * C1 / (2 * B * B * Math.Sqrt(9 * n * n * d * d - B * B));
+                var partial_s_l2 = n * d * (2 * B * B + A * C2) / (2 * B * B * B) * Math.Asin(theta) + n * d * A * C2 / (2 * B * B * Math.Sqrt(9 * n * n * d * d - B * B));
+                var partial_s_l3 = n * d * (2 * B * B + A * C3) / (2 * B * B * B) * Math.Asin(theta) + n * d * A * C3 / (2 * B * B * Math.Sqrt(9 * n * n * d * d - B * B));
+                return new double[] { partial_s_l1, partial_s_l2, partial_s_l3 };
             }
 
             double[] partial_s = CalculateS(lengths, diameter, numSegments);
@@ -351,13 +367,13 @@ namespace ConventionalIK {
                 var partial_a_l3 = 2 * l3 - l1 - l2;
 
                 // Singularity: A == 0
-                var partial_k_a = 1 / (n * B * Math.Sqrt(A));
-                var partial_k_b = -2 * Math.Sqrt(A) / (n * B * B);
+                var partial_k_a = 1 / (d * B * Math.Sqrt(A));
+                var partial_k_b = -2 * Math.Sqrt(A) / (d * B * B);
 
                 return new double[] {
-                    partial_k_a * partial_a_l1 + partial_k_b,
-                    partial_k_a * partial_a_l2 + partial_k_b,
-                    partial_k_a * partial_a_l3 + partial_k_b,
+                    partial_a_l1 / (d * B * Math.Sqrt(A)) + partial_k_b,
+                    partial_a_l2 / (d * B * Math.Sqrt(A)) + partial_k_b,
+                    partial_a_l3 / (d * B * Math.Sqrt(A)) + partial_k_b,
                 };
             }
 
@@ -365,17 +381,17 @@ namespace ConventionalIK {
 
             // phi
             double[] CalculatePhi(Vector<double> lengths) {
-                double l0, l1, l2;
-                l0 = lengths[0];
-                l1 = lengths[1];
-                l2 = lengths[2];
+                double l1, l2, l3;
+                l1 = lengths[0];
+                l2 = lengths[1];
+                l3 = lengths[2];
 
-                var A = Math.Sqrt(3) * (l2 + l1 - 2 * l0);
-                var B = 3 * (l2 - l1);
+                var A = l3 + l2 - 2 * l1;
+                var B = l2 - l3;
 
-                var partial_phi_l0 = -2 * Math.Sqrt(3) * B / (A + Math.Pow(B, 2));
-                var partial_phi_l1 = (Math.Sqrt(3) * B - 3 * A) / (A + Math.Pow(B, 2));
-                var partial_phi_l2 = (Math.Sqrt(3) * B + 3 * A) / (A + Math.Pow(B, 2));
+                var partial_phi_l0 = -6 * Math.Sqrt(3) * B / (3 * B * B + A * A);
+                var partial_phi_l1 = (Math.Sqrt(3) * (3 * B - A)) / (3 * B * B + A * A);
+                var partial_phi_l2 = (Math.Sqrt(3) * (3 * B + A)) / (3 * B * B + A * A);
 
                 return new double[] { partial_phi_l0, partial_phi_l1, partial_phi_l2 };
             }
@@ -535,6 +551,13 @@ namespace ConventionalIK {
             };
         }
 
+        public static Vector<double> IKStep(Vector<double> deltaEE, Matrix<double> J) {
+            var Jdaggar = J.PseudoInverse();
+            var deltaL = Jdaggar * deltaEE;
+
+            return deltaL;
+        }
+
         public static Vector<double> InverseKinematics(Matrix<double> goalEE, Matrix<double> currEE, Vector<double> currL, double diameter, int numSegments) {
             var fkResults = ForwardKinematics(currL, diameter, numSegments);
 
@@ -552,22 +575,36 @@ namespace ConventionalIK {
             int iter = 0;
 
             Matrix<double> deltaEE;
+            Vector<double> deltaVEE;
+            
+            Vector<double> TransformationMatrixToPoseVector(Matrix<double> matrix) {
+                var R = matrix.SubMatrix(0, 3, 0, 3);
+                var T = new double[] { matrix[0, 3], matrix[1, 3], matrix[2, 3] };
+
+                // Rotation matrix to Euler angles step by step
+
+                var (yaw, pitch, roll) = Helper.RotationMatrixToEulerAngles(R);
+
+                return CreateVector.DenseOfArray(new double[] {
+                     matrix[0, 3], matrix[1, 3], matrix[2, 3],
+                     yaw,pitch,roll
+                });
+            }
 
             do {
                 deltaEE = goalEE - currEE;
+
+                deltaVEE = TransformationMatrixToPoseVector(deltaEE);
+
                 var a = 0.1;
 
                 // step2
-                var vEE = a * deltaEE;
+                var vEE = a * deltaVEE;
 
                 // step3
                 var JF2 = MakeJacobianF2(currL, diameter, numSegments);
                 var JF1 = MakeJacobianF1(arc[0], arc[1], arc[2]);
                 var JDH = MakeJacobianDH(Q);
-
-                Debug.WriteLine($"det(JF2): {JF2.Determinant()}");
-                Debug.WriteLine($"det(JF1): {JF1.Determinant()}");
-                Debug.WriteLine($"det(JDH): {JDH.Determinant()}");
 
                 var J = JDH * JF1 * JF2;
 
@@ -577,7 +614,10 @@ namespace ConventionalIK {
                 // step5
                 var vL = Jdaggar * vEE;
 
-                currL = CreateVector.Dense(vL.ToColumnMajorArray());
+                currL += vL;
+                fkResults = ForwardKinematics(currL, diameter, numSegments);
+                currEE = (Matrix<double>)fkResults[2];
+
                 iter++;
 
             } while (iter <= maxIter | deltaEE.FrobeniusNorm() < 0.0001);

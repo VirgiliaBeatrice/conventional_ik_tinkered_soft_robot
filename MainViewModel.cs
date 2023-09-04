@@ -20,6 +20,80 @@ using OpenTK.Mathematics;
 
 namespace ConventionalIK {
     public static class Helper {
+        public static Vector<double> TransformationMatrixToPoseVector(Matrix<double> matrix) {
+            var R = matrix.SubMatrix(0, 3, 0, 3);
+            var T = new double[] { matrix[0, 3], matrix[1, 3], matrix[2, 3] };
+
+            // Rotation matrix to Euler angles step by step
+
+            var (yaw, pitch, roll) = Helper.RotationMatrixToEulerAngles(R);
+
+            return CreateVector.DenseOfArray(new double[] {
+                     matrix[0, 3], matrix[1, 3], matrix[2, 3],
+                     yaw,pitch,roll
+                });
+        }
+
+
+        public static Matrix<double> EulerAnglesToRotationMatrix(double yaw, double pitch, double roll) {
+            // Convert degrees to radians
+            yaw = yaw * (Math.PI / 180.0);
+            pitch = pitch * (Math.PI / 180.0);
+            roll = roll * (Math.PI / 180.0);
+
+            // Z-axis (Yaw) rotation matrix
+            var Rz = Matrix<double>.Build.DenseOfArray(new double[,]
+            {
+                { Math.Cos(yaw), -Math.Sin(yaw), 0 },
+                { Math.Sin(yaw), Math.Cos(yaw),  0 },
+                { 0,             0,              1 }
+            });
+
+            // Y-axis (Pitch) rotation matrix
+            var Ry = Matrix<double>.Build.DenseOfArray(new double[,]
+            {
+                { Math.Cos(pitch),  0, Math.Sin(pitch) },
+                { 0,               1, 0               },
+                { -Math.Sin(pitch), 0, Math.Cos(pitch) }
+            });
+
+            // X-axis (Roll) rotation matrix
+            var Rx = Matrix<double>.Build.DenseOfArray(new double[,]
+            {
+                { 1, 0,              0               },
+                { 0, Math.Cos(roll), -Math.Sin(roll) },
+                { 0, Math.Sin(roll), Math.Cos(roll)  }
+            });
+
+            // Combined rotation matrix
+            return Rz * Ry * Rx;
+        }
+
+        public static (double yaw, double pitch, double roll) RotationMatrixToEulerAngles(Matrix<double> m) {
+            if (m.RowCount != 3 || m.ColumnCount != 3)
+                throw new ArgumentException("Expected a 3x3 matrix.");
+
+            double yaw, pitch, roll;
+
+            if (Math.Abs(m[1, 0] - 1) < 1e-6 || Math.Abs(m[1, 0] + 1) < 1e-6) {
+                // Gimbal lock cases
+                yaw = 0;  // Yaw is set to 0
+                pitch = Math.Atan2(-m[1, 0], m[0, 0]);
+                roll = Math.Atan2(-m[2, 1], m[1, 1]);
+            }
+            else {
+                yaw = Math.Atan2(m[0, 1], m[0, 0]);
+                pitch = Math.Asin(-m[0, 2]);
+                roll = Math.Atan2(m[1, 2], m[2, 2]);
+            }
+
+            // Convert radians to degrees
+            yaw *= (180.0 / Math.PI);
+            pitch *= (180.0 / Math.PI);
+            roll *= (180.0 / Math.PI);
+
+            return (yaw, pitch, roll);
+        }
 
         public static MatrixTransform3D ToMatrixTransform3D(this Matrix<double> matrix) {
             if (matrix.RowCount != 4 || matrix.ColumnCount != 4)
@@ -72,18 +146,18 @@ namespace ConventionalIK {
         private double max = 4;
 
         partial void OnL1Changed(double value) {
-            Robot.L0 = value;
+            Robot.L1 = value;
 
             Robot.Invalidate();
         }
 
         partial void OnL2Changed(double value) {
-            Robot.L1 = value;
+            Robot.L2 = value;
 
             Robot.Invalidate();
         }
         partial void OnL3Changed(double value) {
-            Robot.L2 = value;
+            Robot.L3 = value;
 
             Robot.Invalidate();
         }
@@ -92,16 +166,16 @@ namespace ConventionalIK {
         private void Invalidate() {
             Robot.Joints.ForEach(e => Objects.Remove(e));
             
-            Objects.Remove(Robot.Manipulator);
+            //Objects.Remove(Robot.Manipulator);
             Objects.Remove(Robot.RobotObject);
 
             // Draw robot
             Objects.Add(Robot.RobotObject);
-            Objects.Add(Robot.Manipulator);
+            //Objects.Add(Robot.Manipulator);
 
             Robot.Joints.ForEach(Objects.Add);
 
-            Robot.Compute();
+            Robot.ComputeIK();
             //var T = Kinematics.MakeDHTransformMatrix()
 
         }
