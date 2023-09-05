@@ -13,8 +13,9 @@
     </Window.DataContext>
 
     <Window.InputBindings>
-        <KeyBinding Key="S" Command="{Binding MakeAllJointsCommand}" />
-        <KeyBinding Key="F5" Command="{Binding InvalidateCommand}" />
+        <KeyBinding Key="F1" Command="{Binding InitializeCommand}" />
+        <KeyBinding Key="F5" Command="{Binding ComputeJointsCommand}" />
+        <KeyBinding Key="F6" Command="{Binding ComputeIKCommand}" />
     </Window.InputBindings>
     <Grid>
         <helix:HelixViewport3D x:Name="view1" Background="White" ItemsSource="{Binding Objects}"
@@ -40,7 +41,7 @@
                 <PerspectiveCamera Position="5,5,5" LookDirection="-5,-5,-5" UpDirection="0,0,1"/>
             </helix:HelixViewport3D.Camera>
         </helix:HelixViewport3D>
-        <Grid Width="200" Height="50" VerticalAlignment="Top">
+        <Grid Width="400" Height="50" VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition />
                 <RowDefinition />
@@ -49,13 +50,27 @@
 
                 <ColumnDefinition/>
                 <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
 
             </Grid.ColumnDefinitions>
-            <Label Grid.Row="0" Grid.Column="0" Content="Current Pose" HorizontalAlignment="Center"/>
+            <Label Grid.Row="0" Grid.Column="0" Content="Length" HorizontalAlignment="Center"/>
             <Label Grid.Row="1" Grid.Column="0"/>
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CurrentPose}" HorizontalAlignment="Center"/>
+            <Label Grid.Row="0" Grid.Column="1" Content="{Binding Robot.L1}" HorizontalAlignment="Center"/>
+            <Label Grid.Row="0" Grid.Column="2" Content="{Binding Robot.L2}" HorizontalAlignment="Center"/>
+            <Label Grid.Row="0" Grid.Column="3" Content="{Binding Robot.L3}" HorizontalAlignment="Center"/>
+
+            <Label Grid.Row="1" Grid.Column="0" Content="Arc"
+                   HorizontalAlignment="Center"/>
+            <Label Grid.Row="1" Grid.Column="1" Content="{Binding Robot.Arc[0]}"
+                   HorizontalAlignment="Center"/>
+            <Label Grid.Row="1" Grid.Column="2" Content="{Binding Robot.Arc[1]}"
+                   HorizontalAlignment="Center"/>
+            <Label Grid.Row="1" Grid.Column="3" Content="{Binding Robot.Arc[2]}"
+                   HorizontalAlignment="Center"/>
         </Grid>
-        <StackPanel>
+        <!--
+        <StackPanel Grid.Row="1">
             <Slider Width="200" Maximum="{Binding Max}" Minimum="{Binding Min}" Foreground="Black" Margin="10" Value="{Binding L1}"/>
             <Slider Width="200" Maximum="{Binding Max}" 
                     Minimum="{Binding Min}"
@@ -64,5 +79,6 @@
                     Minimum="{Binding Min}"
                     Foreground="Black" Margin="10" Value="{Binding L3}"/>
         </StackPanel>
+        -->
     </Grid>
 </Window>

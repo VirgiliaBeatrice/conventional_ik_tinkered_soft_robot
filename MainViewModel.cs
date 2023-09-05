@@ -17,6 +17,7 @@ using HelixToolkit.Wpf;
 using MathNet.Numerics.LinearAlgebra;
 using MNVector3D = MathNet.Spatial.Euclidean.Vector3D;
 using OpenTK.Mathematics;
+using System.Xml.Serialization;
 
 namespace ConventionalIK {
     public static class Helper {
@@ -163,21 +164,39 @@ namespace ConventionalIK {
         }
 
         [RelayCommand]
-        private void Invalidate() {
-            Robot.Joints.ForEach(e => Objects.Remove(e));
+        private void ComputeIK() {
+            //Robot.Joints.ForEach(e => Objects.Remove(e));
             
-            //Objects.Remove(Robot.Manipulator);
-            Objects.Remove(Robot.RobotObject);
+            ////Objects.Remove(Robot.Manipulator);
+            //Objects.Remove(Robot.RobotObject);
 
-            // Draw robot
-            Objects.Add(Robot.RobotObject);
-            //Objects.Add(Robot.Manipulator);
+            //// Draw robot
+            //Objects.Add(Robot.RobotObject);
+            ////Objects.Add(Robot.Manipulator);
 
-            Robot.Joints.ForEach(Objects.Add);
+            //Robot.Joints.ForEach(Objects.Add);
 
             Robot.ComputeIK();
             //var T = Kinematics.MakeDHTransformMatrix()
 
+        }
+
+        [RelayCommand]
+        private void Initialize() {
+            Robot.Joints.ForEach(e => Objects.Remove(e));
+            Objects.Remove(Robot.RobotObject);
+            Objects.Remove(Robot.TargetObject);
+
+            Objects.Add(Robot.RobotObject);
+            Objects.Add(Robot.TargetObject);
+            Robot.Joints.ForEach(Objects.Add);
+
+        }
+
+        [RelayCommand]
+        private void ComputeJoints() {
+            Robot.ComputeEEPose();
+            Robot.ComputeJoints();
         }
 
         
@@ -375,6 +394,18 @@ namespace ConventionalIK {
         private CoordinateSystemVisual3D coordinateSystem;
         private BillboardTextVisual3D jointLabel;
         private CombinedManipulator combinedManipulator;
+
+        public new Transform3D Transform {
+            get { return base.Transform; }
+            set {
+                base.Transform = value;
+
+                if (jointTube != null) jointTube.Transform = value;
+                if (boundingBox != null) boundingBox.Transform = value;
+                if (coordinateSystem != null) coordinateSystem.Transform = value;
+                if (jointLabel != null) jointLabel.Transform = value;
+            }
+        }
 
         public double Opacity { get; set; } = 1.0d;
 
