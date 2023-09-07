@@ -127,7 +127,7 @@ namespace ConventionalIK {
             double y = it[2] * other[0] - it[0] * other[2];
             double z = it[0] * other[1] - it[1] * other[0];
 
-            return CreateVector.Dense(new double[] { x, y, z, 1 });
+            return CreateVector.Dense(new double[] { x, y, z});
         }
     }
 
